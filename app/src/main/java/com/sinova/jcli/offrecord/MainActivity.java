@@ -1,15 +1,20 @@
 package com.sinova.jcli.offrecord;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 
 public class MainActivity extends AppCompatActivity {
+
+    public static String TAG = MainActivity.class.getSimpleName();
+    public GoogleDriveModel mGDriveModel=null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,6 +31,8 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
+        mGDriveModel = new GoogleDriveModel(this);
+        Log.v(TAG, "onCreate called");
     }
 
     @Override
@@ -48,5 +55,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        Log.v(TAG, "onActivityResult called requestCode:" + requestCode + " result code:" + resultCode);
+        if (requestCode==GoogleDriveModel.REQUEST_CODE_RESOLUTION) {
+            if (mGDriveModel != null) {
+                mGDriveModel.close();
+                mGDriveModel = null;
+            }
+            mGDriveModel = new GoogleDriveModel(this);
+        }
     }
 }
