@@ -1,5 +1,6 @@
 package com.sinova.jcli.offrecord;
 
+import android.app.Activity;
 import android.app.Application;
 import android.content.Intent;
 import android.support.v7.view.ContextThemeWrapper;
@@ -25,37 +26,34 @@ public class GoogleDriveModelTest extends ActivityInstrumentationTestCase2<MainA
         super(MainActivity.class);
     }
 
+    MainActivity mActivity;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        mActivity = getActivity();
         Log.w(TAG,"Setting up GoogleDriveModelTest");
-    }
-
-    public void testActivityNotNull(){
-        MainActivity activity = getActivity();
-        assertNotNull(activity);
     }
 
     public void testAll() throws InterruptedException {
         mTestGoogleDriveConnected();
-//        mTestCurrentFolderIsRoot();
     }
 
     @Override
     public void tearDown() throws Exception {
         Log.w(TAG, "TearDown GoogleDriveModelTest");
         super.tearDown();
+        Thread.sleep(1000);
     }
 
 ////////////// actual tests ////////////////
 
     private void mTestGoogleDriveConnected() throws InterruptedException {
-        MainActivity activity = getActivity();
         for (int i=0; i<100; i++){
-            if(activity.mGDriveModel.isConnected()) break;
+            if(mActivity.mGDriveModel.isConnected()) break;
             Thread.sleep(1000);
         }
-        assertTrue(activity.mGDriveModel.isConnected());
+        assertTrue(mActivity.mGDriveModel.isConnected());
     }
 
     private void mTestCurrentFolderIsRoot(){

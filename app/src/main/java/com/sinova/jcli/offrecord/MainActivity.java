@@ -65,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onStop() {
         super.onStop();
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onStop() called");
         mGDriveModel.close();
     }
 
