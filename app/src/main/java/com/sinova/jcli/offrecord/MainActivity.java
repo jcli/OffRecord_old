@@ -32,7 +32,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         mGDriveModel = new GoogleDriveModel(this);
-        Log.v(TAG, "onCreate called");
+
+        //enable areas
+        JCLog.enableLogArea(JCLog.LogAreas.UI);
+        JCLog.enableLogArea(JCLog.LogAreas.GOOGLEAPI);
+
+        JCLog.log(this, JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "onCreated called.");
     }
 
     @Override
@@ -58,8 +63,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onStop() {
+        super.onStop();
+        mGDriveModel.close();
+    }
+
+    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        Log.v(TAG, "onActivityResult called requestCode:" + requestCode + " result code:" + resultCode);
+        JCLog.log(this, JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "onActivityResult called requestCode:" + requestCode + " result code:" + resultCode);
         if (requestCode==GoogleDriveModel.REQUEST_CODE_RESOLUTION) {
             if (mGDriveModel != null) {
                 mGDriveModel.close();
@@ -67,5 +78,11 @@ public class MainActivity extends AppCompatActivity {
             }
             mGDriveModel = new GoogleDriveModel(this);
         }
+    }
+
+    @Override
+    protected void onDestroy(){
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onDestroy() called");
+        super.onDestroy();
     }
 }

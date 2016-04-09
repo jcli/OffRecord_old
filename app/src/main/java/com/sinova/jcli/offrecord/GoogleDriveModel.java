@@ -36,32 +36,32 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                 .addOnConnectionFailedListener(this)
                 .addApi(AppIndex.API).build();
         mGoogleApiClient.connect();
-        Log.v(TAG, "connecting ...");
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "connecting...");
     }
 
     public void close(){
         mGoogleApiClient.disconnect();
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "GoogleApiClient disconnected.");
     }
 
     @Override
     public void onConnected(Bundle bundle) {
-        Log.v(TAG, "google drive connected");
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
         // list current folder
         if (mCurrentFolder==null){
             // set it to root
             mCurrentFolder=Drive.DriveApi.getRootFolder(mGoogleApiClient);
         }
-
     }
 
     @Override
     public void onConnectionSuspended(int i) {
-        Log.v(TAG, "google drive connecting suspended");
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "google drive connecting suspended");
     }
 
     @Override
     public void onConnectionFailed(ConnectionResult connectionResult) {
-        Log.v(TAG, "google drive connecting failed");
+        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "google drive connection failed.");
         if (connectionResult.hasResolution()) {
             try {
                 connectionResult.startResolutionForResult(mParentActivity, REQUEST_CODE_RESOLUTION);
@@ -71,5 +71,17 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         } else {
             GooglePlayServicesUtil.getErrorDialog(connectionResult.getErrorCode(), mParentActivity, 0).show();
         }
+    }
+
+    public boolean isConnected(){
+        return mGoogleApiClient.isConnected();
+    }
+
+    public String getCurrentFolder(){
+        return mCurrentFolder.toString();
+    }
+
+    public String getRootFolder(){
+        return Drive.DriveApi.getRootFolder(mGoogleApiClient).toString();
     }
 }
