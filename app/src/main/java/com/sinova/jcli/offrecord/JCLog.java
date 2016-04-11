@@ -2,6 +2,7 @@ package com.sinova.jcli.offrecord;
 
 import android.util.Log;
 
+import java.util.Calendar;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -58,7 +59,12 @@ public class JCLog {
 
     public static void log(Object caller, LogLevel level, LogAreas area, String message){
         if (mCurrentAreas.contains(area) && level.getValue()>= mCurrentLogLevel.getValue()) {
-            String Tag = JCLog.class.getSimpleName() + ": " + caller.getClass().getSimpleName() + ", LogArea(" + area.name + "), thread(" + Thread.currentThread().getName() + ")";
+            Exception ex = new Exception();
+            String callerClass = ex.getStackTrace()[1].getClassName();
+            callerClass = callerClass.substring(callerClass.lastIndexOf('.')+1);
+            String callerMethod = ex.getStackTrace()[1].getMethodName();
+            //String Tag = JCLog.class.getSimpleName() + ": " + caller.getClass().getSimpleName() + ", LogArea(" + area.name + "), thread(" + Thread.currentThread().getName() + ")";
+            String Tag = JCLog.class.getSimpleName() + ": " + callerClass + "::" + callerMethod + ", LogArea(" + area.name + "), thread(" + Thread.currentThread().getName() + ")";
             switch (level){
                 case VERBOSE:
                     Log.v(Tag, message);
