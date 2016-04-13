@@ -6,7 +6,6 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -37,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
         JCLog.enableLogArea(JCLog.LogAreas.UI);
         JCLog.enableLogArea(JCLog.LogAreas.GOOGLEAPI);
 
-        JCLog.log(this, JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "onCreated called.");
+        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "onCreated called.");
     }
 
     @Override
@@ -65,13 +64,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onStop() {
         super.onStop();
-        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onStop() called");
+        JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onStop() called");
         mGDriveModel.close();
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        JCLog.log(this, JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "onActivityResult called requestCode:" + requestCode + " result code:" + resultCode);
+        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "onActivityResult called requestCode:" + requestCode + " result code:" + resultCode);
         if (requestCode==GoogleDriveModel.REQUEST_CODE_RESOLUTION) {
             if (mGDriveModel != null) {
                 mGDriveModel.close();
@@ -83,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy(){
-        JCLog.log(this, JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onDestroy() called");
+        JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onDestroy() called");
         super.onDestroy();
     }
 }
