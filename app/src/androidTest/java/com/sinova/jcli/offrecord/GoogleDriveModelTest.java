@@ -36,8 +36,12 @@ public class GoogleDriveModelTest extends ActivityInstrumentationTestCase2<MainA
     }
 
     public void testAll() throws InterruptedException {
+        // test to see if we are connected.
         mTestGoogleDriveConnected();
-        //mTestDeleteAppRoot();
+        // delete the app root
+        mTestDeleteAppRoot();
+        // goto the app root
+        mTestGotoAppRoot();
     }
 
     @Override
@@ -54,13 +58,20 @@ public class GoogleDriveModelTest extends ActivityInstrumentationTestCase2<MainA
             if(mActivity.mGDriveModel.isConnected()) break;
             Thread.sleep(1000);
         }
-        Thread.sleep(4000);
+        Thread.sleep(2000);
         assertTrue(mActivity.mGDriveModel.isConnected());
     }
 
     private void mTestDeleteAppRoot() throws InterruptedException {
         mActivity.mGDriveModel.deleteAppRoot();
         Thread.sleep(2000);
-        assertTrue(true);
+        assertNull(mActivity.mGDriveModel.getCurrentFolder());
+    }
+
+    private void mTestGotoAppRoot() throws InterruptedException {
+        Log.w(TAG, "Testing goto app root...");
+        mActivity.mGDriveModel.gotoAppRoot();
+        Thread.sleep(2000);
+        assertNotNull(mActivity.mGDriveModel.getCurrentFolder());
     }
 }
