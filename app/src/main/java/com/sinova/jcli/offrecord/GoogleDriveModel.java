@@ -5,6 +5,7 @@ import android.content.IntentSender;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.support.annotation.NonNull;
+import android.util.Log;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
@@ -90,13 +91,35 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
             mCurrentFolder = mFolderStack.peek().folder;
             mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
         }else{
-            //TODO: should go to parent instead of app root
+            //TODO: should go to parent instead of app root, unless we are at app root, then we do nothing.
             gotoAppRoot();
         }
     }
 
     public int getFolderStackSize(){
         return mFolderStack.size();
+    }
+
+    public void gotoFolderByTitle(String folderName){
+        FolderInfo info = mFolderStack.peek();
+        if (info == null){
+            gotoAppRoot();
+            return;
+        }
+        if (info.items!=null){
+            for (Metadata data: info.items){
+                if (data.getTitle().equals(folderName) && data.isFolder()){
+                    // goto folder and list children
+                    mCurrentFolder = data.getDriveId().asDriveFolder();
+                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+                    break;
+                }
+            }
+            // not found
+        }else {
+            // not found
+        }
+
     }
 
     public void gotoAppRoot(){
@@ -135,13 +158,14 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         });
     }
 
-    public void createFolder(String folderName, final boolean gotoFolder){
+    public void createFolder(final String folderName, final boolean gotoFolder){
         if (mCurrentFolder!=null){
             MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
                     .setTitle(folderName).build();
             // check for conflict
+
             FolderInfo info = mFolderStack.peek();
-            if (info!=null && info.folder==mCurrentFolder){
+            if (info != null && info.folder == mCurrentFolder && info.items!=null) {
                 for (Metadata item: info.items){
                     if (item.getTitle()==folderName && item.isFolder()){
                         return;
@@ -154,6 +178,8 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                     if (!result.getStatus().isSuccess()) {
                         JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create a folder");
                         return;
+                    }else{
+                        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created folder: "+ folderName);
                     }
                     if (gotoFolder) {
                         //set the current folder to app root
@@ -169,11 +195,11 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         }
     }
 
-    public void createTxtFile(String fileName, String content){
+    public void createTxtFile(final String fileName, String content){
         if (mCurrentFolder!=null){
             // check for conflict
             FolderInfo info = mFolderStack.peek();
-            if (info!=null && info.folder==mCurrentFolder){
+            if (info!=null && info.folder==mCurrentFolder && info.items!=null){
                 for (Metadata item: info.items){
                     if (item.getTitle() == fileName && !item.isFolder()){
                         return;
@@ -189,9 +215,14 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                         public void onResult(DriveFolder.DriveFileResult result) {
                             if (!result.getStatus().isSuccess()) {
                                 // Handle error
+                                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create a file");
                                 return;
+                            }else{
+                                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created file: "+ fileName);
                             }
-                            DriveFile file = result.getDriveFile();
+                            //list the current folder
+                            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+                            //DriveFile file = result.getDriveFile();
                             // open the file and write
                         }
                     });
@@ -287,16 +318,16 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                     if (info == null || info.folder != mCurrentFolder){
                         info = new FolderInfo();
                         info.folder=mCurrentFolder;
+                        mFolderStack.push(info);
                     }
                     int count=buffer.getCount();
                     if (count>0){
                         //info.items = new FolderInfo.ItemInfo[count];
                         info.items = new Metadata[count];
                         for (int i=0; i<count; i++){
-                            info.items[i] = buffer.get(i);
+                            info.items[i] = buffer.get(i).freeze();
                         }
                     }
-                    mFolderStack.push(info);
                     buffer.release();
                     result.release();
                 }
