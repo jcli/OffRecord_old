@@ -96,6 +96,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
             mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
         }else if (mFolderStack.size()==1){
             //should go to parent, unless we are at app root, then we listChildren only.
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Going to find the parent of current folder.");
             mCurrentFolder.listParents(mGoogleApiClient).
                     setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
                         @Override
@@ -108,19 +109,20 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                                 // have parent. Check the first parent to see if it's drive root.
                                 if(Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId() == buffer.get(0).getDriveId()){
                                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Can't go higher because parent is drive root.");
-                                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
                                 }else{
                                     mFolderStack.pop();
                                     mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder();
-                                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
                                 }
+                            }else{
+                                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Don't have parents when it should.");
                             }
+                            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
                             buffer.release();
                             result.release();
                         }
                     });
         }else{
-            gotoAppRoot();
+            // empty folder stack.  Don't do anything
         }
     }
 
@@ -151,6 +153,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
     }
 
     public void gotoAppRoot(){
+        // // TODO: 4/14/16 need to solve re-entry problem
         mFolderStack.clear();
         // search for "OffRecord" folder
         Query query = new Query.Builder()
@@ -260,6 +263,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
     }
 
     public void deleteAppRoot() {
+        //// TODO: 4/14/16 need to solve re-entry problem 
         Query query = new Query.Builder()
                 .addFilter(Filters.eq(SearchableField.TITLE, "OffRecord"))
                 .addFilter(Filters.eq(SearchableField.MIME_TYPE, "application/vnd.google-apps.folder"))
