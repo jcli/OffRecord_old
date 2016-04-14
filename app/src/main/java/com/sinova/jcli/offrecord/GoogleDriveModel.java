@@ -56,6 +56,9 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
     }
     private ArrayDeque<FolderInfo> mFolderStack = new ArrayDeque<FolderInfo>();
 
+    // current list children job id
+    private int mCurrentListChildrenJobID;
+
     /////////// private state variable /////////////
 
     /////////////// constructor ////////////////////
@@ -68,6 +71,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                 .addOnConnectionFailedListener(this)
                 .addApi(AppIndex.API).build();
         mGoogleApiClient.connect();
+        mCurrentListChildrenJobID=0;
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "connecting...");
     }
 
@@ -89,9 +93,33 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         if (mFolderStack.size()>1){
             mFolderStack.pop();
             mCurrentFolder = mFolderStack.peek().folder;
-            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
+        }else if (mFolderStack.size()==1){
+            //should go to parent, unless we are at app root, then we listChildren only.
+            mCurrentFolder.listParents(mGoogleApiClient).
+                    setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
+                        @Override
+                        public void onResult(DriveApi.MetadataBufferResult result) {
+                            if (!result.getStatus().isSuccess()) {
+                                return;
+                            }
+                            MetadataBuffer buffer = result.getMetadataBuffer();
+                            if (buffer.getCount()>0){
+                                // have parent. Check the first parent to see if it's drive root.
+                                if(Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId() == buffer.get(0).getDriveId()){
+                                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Can't go higher because parent is drive root.");
+                                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
+                                }else{
+                                    mFolderStack.pop();
+                                    mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder();
+                                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
+                                }
+                            }
+                            buffer.release();
+                            result.release();
+                        }
+                    });
         }else{
-            //TODO: should go to parent instead of app root, unless we are at app root, then we do nothing.
             gotoAppRoot();
         }
     }
@@ -111,7 +139,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                 if (data.getTitle().equals(folderName) && data.isFolder()){
                     // goto folder and list children
                     mCurrentFolder = data.getDriveId().asDriveFolder();
-                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
                     break;
                 }
             }
@@ -151,7 +179,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                     Metadata folderData = folderBuffer.get(0);
                     JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "app folder found. name: " + folderData.getTitle());
                     mCurrentFolder=folderData.getDriveId().asDriveFolder();
-                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
                 }
                 buffer.release();
             }
@@ -186,7 +214,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                         mCurrentFolder = result.getDriveFolder();
                     }
                     //list the current folder
-                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
 
                 }
             });
@@ -221,7 +249,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                                 JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created file: "+ fileName);
                             }
                             //list the current folder
-                            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+                            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
                             //DriveFile file = result.getDriveFile();
                             // open the file and write
                         }
@@ -280,7 +308,7 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         // list current folder
         if (mCurrentFolder!=null){
             // list current directory
-            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(childrenRetrievedCallback);
+            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
         }
     }
 
@@ -303,33 +331,50 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         }
     }
 
-    private ResultCallback<DriveApi.MetadataBufferResult> childrenRetrievedCallback = new
-            ResultCallback<DriveApi.MetadataBufferResult>() {
-                @Override
-                public void onResult(DriveApi.MetadataBufferResult result) {
-                    if (!result.getStatus().isSuccess()) {
-                        gotoAppRoot();
-                        return;
-                    }
-                    // list the folder, and push it onto the stack.
-                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Listed all the children in the current folder.");
-                    MetadataBuffer buffer = result.getMetadataBuffer();
-                    FolderInfo info=mFolderStack.peek();
-                    if (info == null || info.folder != mCurrentFolder){
-                        info = new FolderInfo();
-                        info.folder=mCurrentFolder;
-                        mFolderStack.push(info);
-                    }
-                    int count=buffer.getCount();
-                    if (count>0){
-                        //info.items = new FolderInfo.ItemInfo[count];
-                        info.items = new Metadata[count];
-                        for (int i=0; i<count; i++){
-                            info.items[i] = buffer.get(i).freeze();
-                        }
-                    }
-                    buffer.release();
-                    result.release();
+    private class ChildrenRetrievedCallback implements ResultCallback<DriveApi.MetadataBufferResult> {
+
+        private int mJobID;
+        public ChildrenRetrievedCallback() {
+            if (mCurrentListChildrenJobID < 1000) {
+                mJobID = mCurrentListChildrenJobID + 1;
+            }else{
+                mJobID=0;
+            }
+            mCurrentListChildrenJobID=mJobID;
+        }
+
+        @Override
+        public void onResult(DriveApi.MetadataBufferResult result) {
+            // only modify the state if the result is for the current job.
+            // otherwise discard the result
+            if (mJobID == mCurrentListChildrenJobID) {
+                if (!result.getStatus().isSuccess()) {
+                    gotoAppRoot();
+                    return;
                 }
-            };
+                // list the folder, and push it onto the stack.
+                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "List children result for job #"+String.valueOf(mJobID));
+                MetadataBuffer buffer = result.getMetadataBuffer();
+                FolderInfo info = mFolderStack.peek();
+                if (info == null || info.folder != mCurrentFolder) {
+                    info = new FolderInfo();
+                    info.folder = mCurrentFolder;
+                    mFolderStack.push(info);
+                }
+                int count = buffer.getCount();
+                if (count > 0) {
+                    //info.items = new FolderInfo.ItemInfo[count];
+                    info.items = new Metadata[count];
+                    for (int i = 0; i < count; i++) {
+                        info.items[i] = buffer.get(i).freeze();
+                    }
+                }
+                buffer.release();
+                result.release();
+            }else{
+                result.release();
+            }
+        }
+    }
+
 }

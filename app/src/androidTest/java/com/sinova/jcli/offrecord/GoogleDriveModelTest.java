@@ -68,24 +68,27 @@ public class GoogleDriveModelTest extends ActivityInstrumentationTestCase2<MainA
         assertEquals(3, mActivity.mGDriveModel.getFolderStackSize());
 
         mPrintCurrentFolder();
+
         mActivity.mGDriveModel.popFolderStack();
-        Thread.sleep(1000);
-        // check folder stack size
         Log.w(TAG, "Current folder stack depth: " + String.valueOf(mActivity.mGDriveModel.getFolderStackSize()));
         assertEquals(2, mActivity.mGDriveModel.getFolderStackSize());
         mPrintCurrentFolder();
+
         mActivity.mGDriveModel.popFolderStack();
-        Thread.sleep(1000);
-        // check folder stack size
         Log.w(TAG, "Current folder stack depth: " + String.valueOf(mActivity.mGDriveModel.getFolderStackSize()));
         assertEquals(1, mActivity.mGDriveModel.getFolderStackSize());
         mPrintCurrentFolder();
+
         mActivity.mGDriveModel.popFolderStack();
-        Thread.sleep(1000);
-        // check folder stack size
         Log.w(TAG, "Current folder stack depth: " + String.valueOf(mActivity.mGDriveModel.getFolderStackSize()));
         assertEquals(1, mActivity.mGDriveModel.getFolderStackSize());
         mPrintCurrentFolder();
+
+        Thread.sleep(2000);
+        Log.w(TAG, "Current folder stack depth after 2 second delay: " + String.valueOf(mActivity.mGDriveModel.getFolderStackSize()));
+        assertEquals(1, mActivity.mGDriveModel.getFolderStackSize());
+        mPrintCurrentFolder();
+
     }
 
     @Override
