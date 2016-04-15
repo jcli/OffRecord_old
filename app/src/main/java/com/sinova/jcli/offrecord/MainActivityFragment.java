@@ -1,17 +1,22 @@
 package com.sinova.jcli.offrecord;
 
 import android.animation.ObjectAnimator;
+import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Point;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.view.Display;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toolbar;
 
 import com.google.android.gms.drive.Metadata;
 
@@ -32,10 +37,18 @@ public class MainActivityFragment extends Fragment implements Observer{
 
     private class MetadataArrayAdapter extends ArrayAdapter<Metadata>{
 
+        private int mScreenWidth;
+        private int mScreenHeight;
+
         public MetadataArrayAdapter(Context context, int resource) {
             super(context, resource);
             mContext=context;
             mResource=resource;
+            Display display = ((Activity) context).getWindowManager ().getDefaultDisplay ();
+            Point size = new Point ();
+            display.getSize (size);
+            mScreenWidth= size.x;
+            mScreenHeight = size.y;
         }
 
         @Override
@@ -46,11 +59,19 @@ public class MainActivityFragment extends Fragment implements Observer{
             Metadata data = (Metadata)getItem(position);
             title.setText(data.getTitle());
             ObjectAnimator.ofFloat(row,"alpha",0,1).setDuration(500).start();
+            int startX= (int) (0.15*mScreenWidth);
+            ObjectAnimator.ofFloat(row,"x",startX,0).setDuration(500).start();
             return row;
         }
     }
 
     public MainActivityFragment() {
+    }
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setHasOptionsMenu(true);
     }
 
     @Override
@@ -69,8 +90,6 @@ public class MainActivityFragment extends Fragment implements Observer{
                 if (item.isFolder()){
                     mMainActivity.mGDriveModel.gotoFolderByTitle(item.getTitle());
                 }
-//                //Log.v(LOG_TAG, "Connecting to " + parent.getAdapter().getItem(position).toString());
-//                launchService((NetflixDevice)(parent.getAdapter().getItem(position)));
             }
         });
 
@@ -78,11 +97,21 @@ public class MainActivityFragment extends Fragment implements Observer{
     }
 
     @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        switch (id) {
+            case android.R.id.home:
+                //do whatever you want to do here.
+                mMainActivity.mGDriveModel.popFolderStack();
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
     public void onStart(){
         super.onStart();
         mMainActivity.mGDriveModel.addObserver(this);
         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "fragment added as observer...");
-        //mainActivity.mGDriveModel.gotoAppRoot();
     }
 
     @Override
