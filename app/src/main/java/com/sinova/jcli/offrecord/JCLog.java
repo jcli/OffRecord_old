@@ -32,6 +32,7 @@ public class JCLog {
     }
     private static EnumSet<LogAreas> mCurrentAreas=EnumSet.noneOf(LogAreas.class);
     private static LogLevel mCurrentLogLevel=LogLevel.VERBOSE;
+    private static boolean mPrintThread=false;
 
     //public static void out()
     public static void enableLogArea(LogAreas newArea){
@@ -58,12 +59,16 @@ public class JCLog {
     }
 
     public static void log(LogLevel level, LogAreas area, String message){
+        String threadInfo="";
+        if (mPrintThread){
+            threadInfo = ", thread(" + Thread.currentThread().getName() + ")";
+        }
         if (mCurrentAreas.contains(area) && level.getValue()>= mCurrentLogLevel.getValue()) {
             Exception ex = new Exception();
             String callerClass = ex.getStackTrace()[1].getClassName();
             callerClass = callerClass.substring(callerClass.lastIndexOf('.')+1);
             String callerMethod = ex.getStackTrace()[1].getMethodName();
-            String Tag = JCLog.class.getSimpleName() + ": " + callerClass + "::" + callerMethod + ", LogArea(" + area.name + "), thread(" + Thread.currentThread().getName() + ")";
+            String Tag = JCLog.class.getSimpleName() + ": " + callerClass + "::" + callerMethod + ", LogArea(" + area.name + ")" + threadInfo;
             switch (level){
                 case VERBOSE:
                     Log.v(Tag, message);

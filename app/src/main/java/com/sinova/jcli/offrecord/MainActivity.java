@@ -6,6 +6,7 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -13,11 +14,15 @@ import android.view.MenuItem;
 public class MainActivity extends AppCompatActivity {
 
     public static String TAG = MainActivity.class.getSimpleName();
-    public GoogleDriveModel mGDriveModel=null;
+    public static GoogleDriveModel mGDriveModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        //enable areas
+        JCLog.enableLogArea(JCLog.LogAreas.UI);
+        JCLog.enableLogArea(JCLog.LogAreas.GOOGLEAPI);
+
         setContentView(R.layout.activity_main);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -30,12 +35,10 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
-        mGDriveModel = new GoogleDriveModel(this);
-
-        //enable areas
-        JCLog.enableLogArea(JCLog.LogAreas.UI);
-        JCLog.enableLogArea(JCLog.LogAreas.GOOGLEAPI);
-
+        if (mGDriveModel==null) {
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Fresh app start.  Creating GoogleDriveModel.");
+            mGDriveModel = new GoogleDriveModel(this);
+        }
         JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "onCreated called.");
     }
 
@@ -62,10 +65,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onStart(){
+        super.onStart();
+        mGDriveModel.open();
+    }
+
+    @Override
     public void onStop() {
-        super.onStop();
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onStop() called");
         mGDriveModel.close();
+        super.onStop();
     }
 
     @Override
@@ -74,7 +83,6 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode==GoogleDriveModel.REQUEST_CODE_RESOLUTION) {
             if (mGDriveModel != null) {
                 mGDriveModel.close();
-                mGDriveModel = null;
             }
             mGDriveModel = new GoogleDriveModel(this);
         }

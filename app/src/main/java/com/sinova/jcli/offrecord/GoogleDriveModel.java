@@ -33,11 +33,12 @@ import com.google.android.gms.drive.query.SearchableField;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayDeque;
+import java.util.Observable;
 
 /**
  * Created by jcli on 4/7/16.
  */
-public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class GoogleDriveModel extends Observable implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     private GoogleApiClient mGoogleApiClient;
     public static String TAG = GoogleDriveModel.class.getSimpleName();
@@ -70,12 +71,15 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(AppIndex.API).build();
+    }
+
+    /////////////////// public API ////////////////
+    public void open(){
         mGoogleApiClient.connect();
         mCurrentListChildrenJobID=0;
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "connecting...");
     }
 
-    /////////////////// public API ////////////////
     public void close(){
         mGoogleApiClient.disconnect();
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "GoogleApiClient disconnected.");
@@ -311,8 +315,10 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
         // list current folder
         if (mCurrentFolder!=null){
-            // list current directory
+            // list current directory.  Observers will be notified after.
             mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
+        }else{
+            gotoAppRoot();
         }
     }
 
@@ -375,10 +381,14 @@ public class GoogleDriveModel implements GoogleApiClient.ConnectionCallbacks, Go
                 }
                 buffer.release();
                 result.release();
+
+                // notify observers that data set have changed
+                setChanged();
+                notifyObservers();
+                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
             }else{
                 result.release();
             }
         }
     }
-
 }
