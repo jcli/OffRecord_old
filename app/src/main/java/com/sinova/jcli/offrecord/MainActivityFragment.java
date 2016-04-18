@@ -18,6 +18,8 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toolbar;
 
+import com.getbase.floatingactionbutton.FloatingActionButton;
+import com.getbase.floatingactionbutton.FloatingActionsMenu;
 import com.google.android.gms.drive.Metadata;
 
 import java.util.Observable;
@@ -72,6 +74,7 @@ public class MainActivityFragment extends Fragment implements Observer{
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+
     }
 
     @Override
@@ -90,6 +93,24 @@ public class MainActivityFragment extends Fragment implements Observer{
                 if (item.isFolder()){
                     mMainActivity.mGDriveModel.gotoFolderByTitle(item.getTitle());
                 }
+            }
+        });
+
+
+        final FloatingActionsMenu menuMultipleActions = (FloatingActionsMenu) rootView.findViewById(R.id.multiple_actions);
+        final FloatingActionButton addFileButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_file);
+        addFileButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                menuMultipleActions.collapse();
+            }
+        });
+
+        final FloatingActionButton addFolderButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_folder);
+        addFolderButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                menuMultipleActions.collapse();
             }
         });
 
