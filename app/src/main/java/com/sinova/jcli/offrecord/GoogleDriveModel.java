@@ -193,17 +193,17 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
-    public void createFolder(final String folderName, final boolean gotoFolder){
+    public boolean createFolder(final String folderName, final boolean gotoFolder){
         if (mCurrentFolder!=null){
             MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
                     .setTitle(folderName).build();
-            // check for conflict
 
+            // check for conflict
             FolderInfo info = mFolderStack.peek();
             if (info != null && info.folder == mCurrentFolder && info.items!=null) {
                 for (Metadata item: info.items){
-                    if (item.getTitle()==folderName && item.isFolder()){
-                        return;
+                    if (item.getTitle().equals(folderName) && item.isFolder()){
+                        return false;
                     }
                 }
             }
@@ -228,18 +228,22 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         }else{
             gotoAppRoot();
         }
+        return true;
     }
 
-    public void createTxtFile(final String fileName, String content){
+    public boolean createTxtFile(final String fileName, String content){
         if (mCurrentFolder!=null){
             // check for conflict
             FolderInfo info = mFolderStack.peek();
             if (info!=null && info.folder==mCurrentFolder && info.items!=null){
                 for (Metadata item: info.items){
-                    if (item.getTitle() == fileName && !item.isFolder()){
-                        return;
+                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "current title: "+item.getTitle());
+                    if (item.getTitle().equals(fileName) && !item.isFolder()){
+                        return false;
                     }
                 }
+            }else{
+                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "no naming conflict.");
             }
             MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
                     .setTitle(fileName)
@@ -264,6 +268,8 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         }else {
             gotoAppRoot();
         }
+
+        return true;
     }
 
     public void deleteAppRoot() {

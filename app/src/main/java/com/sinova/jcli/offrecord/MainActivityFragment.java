@@ -4,9 +4,12 @@ import android.animation.ObjectAnimator;
 import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Point;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v7.app.AlertDialog;
+import android.text.InputType;
 import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -14,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toolbar;
@@ -34,11 +38,10 @@ public class MainActivityFragment extends Fragment implements Observer{
     private MetadataArrayAdapter mDriveAssetArrayAdapter;
     private MainActivity mMainActivity;
 
-    private int mResource;
-    private Context mContext;
-
     private class MetadataArrayAdapter extends ArrayAdapter<Metadata>{
 
+        private int mResource;
+        private Context mContext;
         private int mScreenWidth;
         private int mScreenHeight;
 
@@ -103,6 +106,7 @@ public class MainActivityFragment extends Fragment implements Observer{
             @Override
             public void onClick(View view) {
                 menuMultipleActions.collapse();
+                nameInputPopup("File Name", false);
             }
         });
 
@@ -111,6 +115,7 @@ public class MainActivityFragment extends Fragment implements Observer{
             @Override
             public void onClick(View view) {
                 menuMultipleActions.collapse();
+                nameInputPopup("Folder Name", true);
             }
         });
 
@@ -143,5 +148,43 @@ public class MainActivityFragment extends Fragment implements Observer{
         if(items!=null) {
             mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
         }
+    }
+
+    //////////////// private helper functions /////////////////
+
+    private void nameInputPopup(final String title, final boolean isFolder){
+        AlertDialog.Builder builder = new AlertDialog.Builder(mMainActivity);
+        builder.setTitle(title);
+
+        // Set up the input
+        final EditText input = new EditText(mMainActivity);
+        // Specify the type of input expected; this, for example, sets the input as a password, and will mask the text
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        builder.setView(input);
+
+        // Set up the buttons
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String name = input.getText().toString();
+                boolean status;
+                if (isFolder){
+                    status = mMainActivity.mGDriveModel.createFolder(name, false);
+                }else {
+                    status = mMainActivity.mGDriveModel.createTxtFile(name, null);
+                }
+                if (!status){
+                    nameInputPopup(title, isFolder);
+                }
+            }
+        });
+        builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+
+        builder.show();
     }
 }
