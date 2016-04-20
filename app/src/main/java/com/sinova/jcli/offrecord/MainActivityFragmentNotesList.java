@@ -102,7 +102,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer{
                 }else{
                     // launch the edit fragment
                     FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
-                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit()).commit();
+                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit()).addToBackStack(null).commit();
                 }
             }
         });

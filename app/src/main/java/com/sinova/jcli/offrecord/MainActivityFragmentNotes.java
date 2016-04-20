@@ -12,6 +12,8 @@ import android.view.ViewGroup;
  */
 public class MainActivityFragmentNotes extends Fragment {
 
+    static int currentFragment=0;
+
     public MainActivityFragmentNotes() {
     }
 
@@ -28,9 +30,19 @@ public class MainActivityFragmentNotes extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_notes, container, false);
 
         FragmentTransaction transaction = getChildFragmentManager().beginTransaction();
-        transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesList()).commit();
+        if (currentFragment==0) {
+            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesList()).commit();
+        }else{
+            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit()).commit();
+        }
 
         return rootView;
     }
+
+    @Override
+    public void onStop(){
+        super.onStop();
+    }
+
 
 }

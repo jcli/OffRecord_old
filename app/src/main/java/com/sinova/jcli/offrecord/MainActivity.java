@@ -25,7 +25,12 @@ public class MainActivity extends AppCompatActivity {
     public static GoogleDriveModel mGDriveModel;
 
     private ViewPager mViewPager;
+    private OffRecordPagerAdapter mPagerAdapter;
     private TabLayout mTabLayout;
+
+    private MainActivityFragmentNotes mNotesFragment;
+    private MainActivityFragmentChats mChatsFragment;
+    private MainActivityFragmentPeople mPeopleFragment;
 
     private class OffRecordPagerAdapter extends FragmentPagerAdapter{
 
@@ -86,12 +91,15 @@ public class MainActivity extends AppCompatActivity {
 
         // setup tabs
         mViewPager = (ViewPager) findViewById(R.id.viewpager);
-        OffRecordPagerAdapter adapter = new OffRecordPagerAdapter(getSupportFragmentManager());
-        adapter.addFragment(new MainActivityFragmentNotes(), "Notes");
-        adapter.addFragment(new MainActivityFragmentChats(), "Chats");
-        adapter.addFragment(new MainActivityFragmentPeople(), "People");
+        mPagerAdapter = new OffRecordPagerAdapter(getSupportFragmentManager());
+        mNotesFragment = new MainActivityFragmentNotes();
+        mChatsFragment = new MainActivityFragmentChats();
+        mPeopleFragment = new MainActivityFragmentPeople();
+        mPagerAdapter.addFragment(mNotesFragment, "Notes");
+        mPagerAdapter.addFragment(mChatsFragment, "Chats");
+        mPagerAdapter.addFragment(mPeopleFragment, "People");
 
-        mViewPager.setAdapter(adapter);
+        mViewPager.setAdapter(mPagerAdapter);
 
         mTabLayout = (TabLayout) findViewById(R.id.tabs);
         mTabLayout.setupWithViewPager(mViewPager);
@@ -162,5 +170,30 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy(){
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.UI, "onDestroy() called");
         super.onDestroy();
+    }
+
+    @Override
+    public void onBackPressed() {
+        //process fragment back stack first
+        //Fragment currentFragment = mPagerAdapter.getItem(mViewPager.getCurrentItem());
+        switch (mViewPager.getCurrentItem()){
+            case 0:  // notes fragment
+                int childBackStackCount = mNotesFragment.getChildFragmentManager().getBackStackEntryCount();
+                if (childBackStackCount>0) {
+                    mNotesFragment.getChildFragmentManager().popBackStack();
+                    return;
+                }
+                break;
+            default:
+                break;
+        }
+
+        int count = getFragmentManager().getBackStackEntryCount();
+        if (count == 0) {
+            super.onBackPressed();
+            //additional code
+        } else {
+            getFragmentManager().popBackStack();
+        }
     }
 }
