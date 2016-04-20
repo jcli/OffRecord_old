@@ -90,9 +90,10 @@ public class MainActivity extends AppCompatActivity {
         // setup tabs
         mViewPager = (ViewPager) findViewById(R.id.viewpager);
         OffRecordPagerAdapter adapter = new OffRecordPagerAdapter(getSupportFragmentManager());
-        adapter.addFragment(new MainActivityFragment(), "ONE");
-        // add more tab fragments
-        adapter.addFragment(new MainActivityFragment(), "tests");
+        adapter.addFragment(new MainActivityFragment(), "Notes");
+        adapter.addFragment(new MainActivityFragmentPeople(), "People");
+        adapter.addFragment(new MainActivityFragmentChats(), "Chats");
+
         mViewPager.setAdapter(adapter);
 
         mTabLayout = (TabLayout) findViewById(R.id.tabs);
