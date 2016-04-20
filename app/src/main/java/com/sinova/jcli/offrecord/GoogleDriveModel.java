@@ -318,6 +318,8 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 });
     }
 
+    ////////////////// observable related //////////
+
     ////////////////// callbacks //////////////////
     @Override
     public void onConnected(Bundle bundle) {
@@ -408,8 +410,9 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 }
                 // notify observers that data set have changed
                 setChanged();
-                notifyObservers();
                 JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+                notifyObservers();
+                clearChanged();
             }else{
                 result.release();
             }

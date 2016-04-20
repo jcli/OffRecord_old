@@ -1,13 +1,13 @@
 package com.sinova.jcli.offrecord;
 
 import android.animation.ObjectAnimator;
-import android.app.ActionBar;
 import android.app.Activity;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Point;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AlertDialog;
 import android.text.InputType;
 import android.view.Display;
@@ -20,7 +20,6 @@ import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toolbar;
 
 import com.getbase.floatingactionbutton.FloatingActionButton;
 import com.getbase.floatingactionbutton.FloatingActionsMenu;
@@ -28,12 +27,11 @@ import com.google.android.gms.drive.Metadata;
 
 import java.util.Observable;
 import java.util.Observer;
-import java.util.zip.Inflater;
 
 /**
  * A placeholder fragment containing a simple view.
  */
-public class MainActivityFragment extends Fragment implements Observer{
+public class MainActivityFragmentNotesList extends Fragment implements Observer{
 
     private MetadataArrayAdapter mDriveAssetArrayAdapter;
     private MainActivity mMainActivity;
@@ -49,10 +47,10 @@ public class MainActivityFragment extends Fragment implements Observer{
             super(context, resource);
             mContext=context;
             mResource=resource;
-            Display display = ((Activity) context).getWindowManager ().getDefaultDisplay ();
-            Point size = new Point ();
-            display.getSize (size);
-            mScreenWidth= size.x;
+            Display display = ((Activity) context).getWindowManager().getDefaultDisplay ();
+            Point size = new Point();
+            display.getSize(size);
+            mScreenWidth = size.x;
             mScreenHeight = size.y;
         }
 
@@ -76,7 +74,7 @@ public class MainActivityFragment extends Fragment implements Observer{
         }
     }
 
-    public MainActivityFragment() {
+    public MainActivityFragmentNotesList() {
     }
 
     @Override
@@ -89,7 +87,7 @@ public class MainActivityFragment extends Fragment implements Observer{
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        View rootView = inflater.inflate(R.layout.fragment_main, container, false);
+        View rootView = inflater.inflate(R.layout.fragment_note_list, container, false);
         mMainActivity = (MainActivity)getActivity();
         mDriveAssetArrayAdapter = new MetadataArrayAdapter(mMainActivity,
                 R.layout.list_item_drive_asset);
@@ -101,10 +99,20 @@ public class MainActivityFragment extends Fragment implements Observer{
                 Metadata item = (Metadata)(parent.getAdapter().getItem(position));
                 if (item.isFolder()){
                     mMainActivity.mGDriveModel.gotoFolderByTitle(item.getTitle());
+                }else{
+                    // launch the edit fragment
+                    FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
+                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit()).commit();
                 }
             }
         });
 
+        // populate the list
+        mDriveAssetArrayAdapter.clear();
+        if (mMainActivity.mGDriveModel.getCurrentFolder()!=null &&
+                mMainActivity.mGDriveModel.getCurrentFolder().items!=null){
+            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
+        }
 
         final FloatingActionsMenu menuMultipleActions = (FloatingActionsMenu) rootView.findViewById(R.id.multiple_actions);
         final FloatingActionButton addFileButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_file);
@@ -144,6 +152,12 @@ public class MainActivityFragment extends Fragment implements Observer{
         super.onStart();
         mMainActivity.mGDriveModel.addObserver(this);
         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "fragment added as observer...");
+    }
+
+    @Override
+    public void onStop(){
+        mMainActivity.mGDriveModel.deleteObserver(this);
+        super.onStop();
     }
 
     @Override

@@ -3,7 +3,7 @@ package com.sinova.jcli.offrecord;
 import android.content.Intent;
 import android.os.Bundle;
 //import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
+import android.os.Debug;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
@@ -12,12 +12,9 @@ import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
-
-import com.getbase.floatingactionbutton.FloatingActionButton;
-import com.getbase.floatingactionbutton.FloatingActionsMenu;
+import android.view.WindowManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,9 +87,9 @@ public class MainActivity extends AppCompatActivity {
         // setup tabs
         mViewPager = (ViewPager) findViewById(R.id.viewpager);
         OffRecordPagerAdapter adapter = new OffRecordPagerAdapter(getSupportFragmentManager());
-        adapter.addFragment(new MainActivityFragment(), "Notes");
-        adapter.addFragment(new MainActivityFragmentPeople(), "People");
+        adapter.addFragment(new MainActivityFragmentNotes(), "Notes");
         adapter.addFragment(new MainActivityFragmentChats(), "Chats");
+        adapter.addFragment(new MainActivityFragmentPeople(), "People");
 
         mViewPager.setAdapter(adapter);
 
@@ -100,6 +97,19 @@ public class MainActivity extends AppCompatActivity {
         mTabLayout.setupWithViewPager(mViewPager);
 
         JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "onCreated called.");
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (BuildConfig.DEBUG) { // don't even consider it otherwise
+            if (Debug.isDebuggerConnected()) {
+                Log.d("SCREEN", "Keeping screen on for debugging, detach debugger and force an onResume to turn it off.");
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                Log.d("SCREEN", "Keeping screen on for debugging is now deactivated.");
+            }
+        }
     }
 
     @Override
