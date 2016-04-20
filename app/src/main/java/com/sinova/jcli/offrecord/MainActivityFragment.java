@@ -61,8 +61,14 @@ public class MainActivityFragment extends Fragment implements Observer{
             LayoutInflater inflater = ((Activity) mContext).getLayoutInflater();
             View row=inflater.inflate(mResource,parent,false);
             TextView title = (TextView)row.findViewById(R.id.list_item_drive_asset_title);
+            TextView type = (TextView) row.findViewById(R.id.list_item_drive_asset_type);
             Metadata data = (Metadata)getItem(position);
             title.setText(data.getTitle());
+            if (data.isFolder()){
+                type.setText("Folder");
+            }else{
+                type.setText("Text File");
+            }
             ObjectAnimator.ofFloat(row,"alpha",0,1).setDuration(500).start();
             int startX= (int) (0.15*mScreenWidth);
             ObjectAnimator.ofFloat(row,"x",startX,0).setDuration(500).start();

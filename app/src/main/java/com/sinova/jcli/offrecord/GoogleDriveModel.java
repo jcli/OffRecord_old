@@ -32,7 +32,10 @@ import com.google.android.gms.drive.query.SearchableField;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Array;
 import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Observable;
 
 /**
@@ -387,7 +390,22 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 }
                 buffer.release();
                 result.release();
-
+                if (info.items!=null) {
+                    Arrays.sort(info.items, new Comparator<Metadata>() {
+                        @Override
+                        public int compare(Metadata lhs, Metadata rhs) {
+                            if (lhs.isFolder() == rhs.isFolder()) {
+                                return lhs.getTitle().compareTo(rhs.getTitle());
+                            } else {
+                                if (lhs.isFolder()) {
+                                    return -1;
+                                } else {
+                                    return 1;
+                                }
+                            }
+                        }
+                    });
+                }
                 // notify observers that data set have changed
                 setChanged();
                 notifyObservers();
