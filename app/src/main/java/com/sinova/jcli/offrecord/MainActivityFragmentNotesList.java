@@ -31,10 +31,15 @@ import java.util.Observer;
 /**
  * A placeholder fragment containing a simple view.
  */
-public class MainActivityFragmentNotesList extends Fragment implements Observer{
+public class MainActivityFragmentNotesList extends Fragment implements Observer, FragmentBackStackPressed, GoogleDriveModel.GoogleDriveModelCallbacks {
 
     private MetadataArrayAdapter mDriveAssetArrayAdapter;
     private MainActivity mMainActivity;
+
+    @Override
+    public boolean onBackPressed() {
+        return false;
+    }
 
     private class MetadataArrayAdapter extends ArrayAdapter<Metadata>{
 
@@ -81,7 +86,6 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer{
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
-
     }
 
     @Override
@@ -89,6 +93,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer{
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_note_list, container, false);
         mMainActivity = (MainActivity)getActivity();
+        mMainActivity.mGDriveModel.setCallbackReceiver(this);
         mDriveAssetArrayAdapter = new MetadataArrayAdapter(mMainActivity,
                 R.layout.list_item_drive_asset);
         ListView driveAssetListView = (ListView) rootView.findViewById(R.id.driveAssetListView);
@@ -100,9 +105,8 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer{
                 if (item.isFolder()){
                     mMainActivity.mGDriveModel.gotoFolderByTitle(item.getTitle());
                 }else{
-                    // launch the edit fragment
-                    FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
-                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit()).addToBackStack(null).commit();
+                    // open file
+                    mMainActivity.mGDriveModel.openReadTxtFile(item.getDriveId().encodeToString());
                 }
             }
         });
@@ -136,13 +140,16 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer{
         return rootView;
     }
 
+    public void goUpLevel(){
+        mMainActivity.mGDriveModel.popFolderStack();
+    }
+
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         switch (id) {
             case android.R.id.home:
-                //do whatever you want to do here.
-                mMainActivity.mGDriveModel.popFolderStack();
+                goUpLevel();
         }
         return super.onOptionsItemSelected(item);
     }
@@ -207,4 +214,18 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer{
 
         builder.show();
     }
+
+    //////////// Google Drive model callback
+    @Override
+    public void txtFileContentAvaliable(String assetID, String contentStr) {
+        // launch the edit fragment
+        FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
+        transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(assetID, contentStr)).addToBackStack(null).commit();
+    }
+
+    @Override
+    public void fileCommitComplete(String assetID) {
+
+    }
+
 }

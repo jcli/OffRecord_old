@@ -9,7 +9,7 @@ import android.view.ViewGroup;
 /**
  * Created by jcli on 4/19/16.
  */
-public class MainActivityFragmentPeople extends Fragment {
+public class MainActivityFragmentPeople extends Fragment implements FragmentBackStackPressed{
 
     public MainActivityFragmentPeople() {
     }
@@ -26,5 +26,10 @@ public class MainActivityFragmentPeople extends Fragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_people, container, false);
         return rootView;
+    }
+
+    @Override
+    public boolean onBackPressed() {
+        return false;
     }
 }

@@ -10,9 +10,11 @@ import android.view.ViewGroup;
 /**
  * Created by jcli on 4/20/16.
  */
-public class MainActivityFragmentNotes extends Fragment {
+public class MainActivityFragmentNotes extends Fragment implements FragmentBackStackPressed{
 
     static int currentFragment=0;
+    MainActivityFragmentNotesList notesList;
+    MainActivityFragmentNotesEdit notesEdit;
 
     public MainActivityFragmentNotes() {
     }
@@ -30,10 +32,12 @@ public class MainActivityFragmentNotes extends Fragment {
         View rootView = inflater.inflate(R.layout.fragment_notes, container, false);
 
         FragmentTransaction transaction = getChildFragmentManager().beginTransaction();
+        notesEdit = new MainActivityFragmentNotesEdit();
+        notesList = new MainActivityFragmentNotesList();
         if (currentFragment==0) {
-            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesList()).commit();
+            transaction.replace(R.id.notes_child_fragment, notesList).commit();
         }else{
-            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit()).commit();
+            transaction.replace(R.id.notes_child_fragment, notesEdit).commit();
         }
 
         return rootView;
@@ -45,4 +49,21 @@ public class MainActivityFragmentNotes extends Fragment {
     }
 
 
+    @Override
+    public boolean onBackPressed() {
+        int childBackStackCount = getChildFragmentManager().getBackStackEntryCount();
+        if (childBackStackCount>0) {
+            getChildFragmentManager().popBackStack();
+            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "going back to asset list.");
+            return true;
+        }else {
+            Fragment currentFragment = getChildFragmentManager().findFragmentById(R.id.notes_child_fragment);
+            if (currentFragment==notesList && currentFragment!=null){
+                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "going up to parent folder.");
+                notesList.goUpLevel();
+                return true;
+            }
+            return false;
+        }
+    }
 }

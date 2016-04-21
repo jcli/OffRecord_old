@@ -75,15 +75,6 @@ public class MainActivity extends AppCompatActivity {
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setDisplayShowHomeEnabled(true);
 
-//        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-//        fab.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View view) {
-//                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-//                        .setAction("Action", null).show();
-//            }
-//        });
-
         if (mGDriveModel==null) {
             JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Fresh app start.  Creating GoogleDriveModel.");
             mGDriveModel = new GoogleDriveModel(this);
@@ -109,19 +100,13 @@ public class MainActivity extends AppCompatActivity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (BuildConfig.DEBUG) { // don't even consider it otherwise
-            if (Debug.isDebuggerConnected()) {
-                Log.d("SCREEN", "Keeping screen on for debugging, detach debugger and force an onResume to turn it off.");
-                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            } else {
-                getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                Log.d("SCREEN", "Keeping screen on for debugging is now deactivated.");
-            }
-        }
+        Log.d("SCREEN", "Keeping screen on for debugging.");
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
@@ -175,25 +160,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onBackPressed() {
         //process fragment back stack first
-        //Fragment currentFragment = mPagerAdapter.getItem(mViewPager.getCurrentItem());
-        switch (mViewPager.getCurrentItem()){
-            case 0:  // notes fragment
-                int childBackStackCount = mNotesFragment.getChildFragmentManager().getBackStackEntryCount();
-                if (childBackStackCount>0) {
-                    mNotesFragment.getChildFragmentManager().popBackStack();
-                    return;
-                }
-                break;
-            default:
-                break;
-        }
-
-        int count = getFragmentManager().getBackStackEntryCount();
-        if (count == 0) {
-            super.onBackPressed();
-            //additional code
-        } else {
-            getFragmentManager().popBackStack();
+        FragmentBackStackPressed currentFragment = (FragmentBackStackPressed) mPagerAdapter.getItem(mViewPager.getCurrentItem());
+        if (!currentFragment.onBackPressed()) {
+            int count = getFragmentManager().getBackStackEntryCount();
+            if (count == 0) {
+                super.onBackPressed();
+                //additional code
+            } else {
+                getFragmentManager().popBackStack();
+            }
         }
     }
 }
