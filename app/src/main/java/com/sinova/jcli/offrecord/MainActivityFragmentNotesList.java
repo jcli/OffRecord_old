@@ -36,6 +36,8 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     private MetadataArrayAdapter mDriveAssetArrayAdapter;
     private MainActivity mMainActivity;
 
+    private GoogleDriveModel.FolderInfo mCurrentFolder;
+
     @Override
     public boolean onBackPressed() {
         return false;
@@ -103,7 +105,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 Metadata item = (Metadata)(parent.getAdapter().getItem(position));
                 if (item.isFolder()){
-                    mMainActivity.mGDriveModel.gotoFolderByTitle(item.getTitle());
+                    mMainActivity.mGDriveModel.listFolderByID(item.getDriveId().encodeToString(), listFolderByIDCallback);
                 }else{
                     // open file
                     mMainActivity.mGDriveModel.openReadTxtFile(item.getDriveId().encodeToString());
@@ -112,11 +114,13 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
         });
 
         // populate the list
-        mDriveAssetArrayAdapter.clear();
-        if (mMainActivity.mGDriveModel.getCurrentFolder()!=null &&
-                mMainActivity.mGDriveModel.getCurrentFolder().items!=null){
-            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
-        }
+//        mMainActivity.mGDriveModel.listSectionRoot("Notes", listFolderByIDCallback);
+
+//        mDriveAssetArrayAdapter.clear();
+//        if (mMainActivity.mGDriveModel.getCurrentFolder()!=null &&
+//                mMainActivity.mGDriveModel.getCurrentFolder().items!=null){
+//            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
+//        }
 
         final FloatingActionsMenu menuMultipleActions = (FloatingActionsMenu) rootView.findViewById(R.id.multiple_actions);
         final FloatingActionButton addFileButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_file);
@@ -141,7 +145,10 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     public void goUpLevel(){
-        mMainActivity.mGDriveModel.popFolderStack();
+        if (mCurrentFolder.parentFolder!=null) {
+            mMainActivity.mGDriveModel.listFolderByID(mCurrentFolder.parentFolder.getDriveId().encodeToString(),
+                    listFolderByIDCallback);
+        }
     }
 
     @Override
@@ -169,12 +176,14 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
     @Override
     public void update(Observable observable, Object data) {
-        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "change detected!!");
-        mDriveAssetArrayAdapter.clear();
-        Metadata items[]=mMainActivity.mGDriveModel.getCurrentFolder().items;
-        if(items!=null) {
-            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
-        }
+//        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "change detected!!");
+//        mDriveAssetArrayAdapter.clear();
+//        Metadata items[]=mMainActivity.mGDriveModel.getCurrentFolder().items;
+//        if(items!=null) {
+//            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
+//        }
+        // populate the list
+        mMainActivity.mGDriveModel.listSectionRoot("Notes", listFolderByIDCallback);
     }
 
     //////////////// private helper functions /////////////////
@@ -194,9 +203,11 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String name = input.getText().toString();
-                boolean status;
+                boolean status=true;
                 if (isFolder){
-                    status = mMainActivity.mGDriveModel.createFolder(name, false);
+                    //status = mMainActivity.mGDriveModel.createFolderInCurrentFolder(name, false);
+                    mMainActivity.mGDriveModel.createFolderInFolder(name, mCurrentFolder.folder.getDriveId().encodeToString(),
+                            false, listFolderByIDCallback);
                 }else {
                     status = mMainActivity.mGDriveModel.createTxtFile(name, null);
                 }
@@ -228,4 +239,17 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
     }
 
+
+    //////////// callbacks /////////////
+
+    private GoogleDriveModel.ListFolderByIDCallback listFolderByIDCallback = new GoogleDriveModel.ListFolderByIDCallback() {
+        @Override
+        public void callback(GoogleDriveModel.FolderInfo info) {
+            if (info!=null) {
+                mCurrentFolder = info;
+                mDriveAssetArrayAdapter.clear();
+                mDriveAssetArrayAdapter.addAll(info.items);
+            }
+        }
+    };
 }

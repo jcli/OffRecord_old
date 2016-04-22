@@ -5,16 +5,13 @@ import android.content.IntentSender;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.support.annotation.NonNull;
-import android.util.Log;
 
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
-import com.google.android.gms.drive.Contents;
 import com.google.android.gms.drive.Drive;
 import com.google.android.gms.drive.DriveApi;
 import com.google.android.gms.drive.DriveApi.DriveContentsResult;
@@ -22,7 +19,6 @@ import com.google.android.gms.drive.DriveContents;
 import com.google.android.gms.drive.DriveFile;
 import com.google.android.gms.drive.DriveFolder;
 import com.google.android.gms.drive.DriveId;
-import com.google.android.gms.drive.ExecutionOptions;
 import com.google.android.gms.drive.Metadata;
 import com.google.android.gms.drive.MetadataBuffer;
 import com.google.android.gms.drive.MetadataChangeSet;
@@ -31,21 +27,15 @@ import com.google.android.gms.drive.query.Query;
 import com.google.android.gms.drive.query.SearchableField;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.lang.reflect.Array;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Observable;
 
 /**
@@ -67,6 +57,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
 
     // folder stack
     public class FolderInfo {
+        public DriveFolder parentFolder;
         public DriveFolder folder;
         public Metadata items[];
     }
@@ -94,7 +85,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 .addApi(AppIndex.API).build();
     }
 
-    /////////////////// public API ////////////////
+    /////////////////// public API that I will keep////////////////
     public void open(){
         mGoogleApiClient.connect();
         mCurrentListChildrenJobID=0;
@@ -115,11 +106,203 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         return mGoogleApiClient.isConnected();
     }
 
+    public interface SearchFolderForAssetByNameCallback {
+        void callback(String[] assetIDs);
+    }
+    public void searchFolderForFolderByName(String folderIDStr, String assetName, final SearchFolderForAssetByNameCallback callbackInstance){
+        Query query = new Query.Builder()
+                .addFilter(Filters.eq(SearchableField.TITLE, assetName))
+                .addFilter(Filters.eq(SearchableField.MIME_TYPE, "application/vnd.google-apps.folder"))
+                .build();
+        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Searching for: " + assetName);
+        DriveId.decodeFromString(folderIDStr)
+                .asDriveFolder().queryChildren(mGoogleApiClient, query)
+                .setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
+            @Override
+            public void onResult(DriveApi.MetadataBufferResult result) {
+                if (!result.getStatus().isSuccess()) {
+                    callbackInstance.callback(new String[0]);
+                    return;
+                }
+                MetadataBuffer buffer = result.getMetadataBuffer();
+                int count=buffer.getCount();
+                String assetIDs[] = new String[count];
+                for (int i=0; i<count; i++){
+                    assetIDs[i]=new String(buffer.get(0).getDriveId().encodeToString());
+                }
+                callbackInstance.callback(assetIDs);
+                buffer.release();
+            }
+        });
+    }
+
+    public interface ListParentByIDCallback{
+        void callback (DriveFolder parent);
+    }
+    public void listParentByID (String assetIDStr, final ListParentByIDCallback callbackInstance){
+        DriveId.decodeFromString(assetIDStr).asDriveResource().listParents(mGoogleApiClient).
+                setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
+                    @Override
+                    public void onResult(DriveApi.MetadataBufferResult result) {
+                        if (!result.getStatus().isSuccess()) {
+                            callbackInstance.callback(null);
+                            return;
+                        }
+                        MetadataBuffer buffer = result.getMetadataBuffer();
+                        if (buffer.getCount()>0){
+                            // have parents. return the first parent.
+                            callbackInstance.callback(mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder());
+                        }else{
+                            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Don't have parents.");
+                            callbackInstance.callback(null);
+                        }
+                        buffer.release();
+                        result.release();
+                    }
+                });
+    }
+
+    public interface ListFolderByIDCallback {
+        void callback(FolderInfo info);
+    }
+    public void listFolderByID (String folderIDStr, final ListFolderByIDCallback callbackInstance) {
+        final FolderInfo currentFolder = new FolderInfo();
+        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "listing folder: "+folderIDStr);
+        currentFolder.folder = DriveId.decodeFromString(folderIDStr).asDriveFolder();
+        // list parents first
+        listParentByID(folderIDStr, new ListParentByIDCallback() {
+            @Override
+            public void callback(DriveFolder parent) {
+                currentFolder.parentFolder = parent;
+                // then list children
+                currentFolder.folder.listChildren(mGoogleApiClient)
+                        .setResultCallback(new ChildrenRetrievedCallback() {
+                            @Override
+                            public void onResult(DriveApi.MetadataBufferResult result) {
+                                if (!result.getStatus().isSuccess()) {
+                                    currentFolder.items = new Metadata[0];
+                                    callbackInstance.callback(currentFolder);
+                                    return;
+                                }
+                                MetadataBuffer buffer = result.getMetadataBuffer();
+                                if (buffer.getCount()>0){
+                                    currentFolder.items = new Metadata[buffer.getCount()];
+                                    for (int i=0; i<buffer.getCount(); i++){
+                                        currentFolder.items[i]=buffer.get(i).freeze();
+                                    }
+                                    // sort items
+                                    Arrays.sort(currentFolder.items, new Comparator<Metadata>() {
+                                        @Override
+                                        public int compare(Metadata lhs, Metadata rhs) {
+                                            if (lhs.isFolder() == rhs.isFolder()) {
+                                                return lhs.getTitle().compareTo(rhs.getTitle());
+                                            } else {
+                                                if (lhs.isFolder()) {
+                                                    return -1;
+                                                } else {
+                                                    return 1;
+                                                }
+                                            }
+                                        }
+                                    });
+                                    callbackInstance.callback(currentFolder);
+                                }else{
+                                    currentFolder.items = new Metadata[0];
+                                    callbackInstance.callback(currentFolder);
+                                }
+                                buffer.release();
+                                result.release();
+                            }
+                        });
+            }
+        });
+    }
+
+    public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder, final ListFolderByIDCallback callbackInstance){
+        // check for naming conflict
+        listFolderByID(folderIdStr, new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                for (int i=0; i<info.items.length; i++){
+                    if (info.items[i].getTitle().equals(name) && info.items[i].isFolder()){
+                        // naming conflict !!
+                        callbackInstance.callback(null);
+                        return;
+                    }
+                }
+                // no conflict if it gets to here
+                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
+                        .setTitle(name).build();
+                DriveId.decodeFromString(folderIdStr).asDriveFolder()
+                        .createFolder(mGoogleApiClient, changeSet)
+                        .setResultCallback(new ResultCallback<DriveFolder.DriveFolderResult>() {
+                    @Override
+                    public void onResult(@NonNull DriveFolder.DriveFolderResult result) {
+                        if (!result.getStatus().isSuccess()) {
+                            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create folder: " + name);
+                            callbackInstance.callback(null);
+                            return;
+                        }else{
+                            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created folder: "+ name);
+                            if (gotoFolder){
+                                // list newly created folder
+                                listFolderByID(result.getDriveFolder().getDriveId().encodeToString(), callbackInstance);
+                            }else{
+                                // list current folder again
+                                listFolderByID(folderIdStr, callbackInstance);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+
+
+    }
+
+    public void searchCreateFolders(final String names[], final String folderIDStr, final ListFolderByIDCallback callbackInstance) {
+        if (names.length > 0) {
+            final String name = new String(names[0]);
+            searchFolderForFolderByName(folderIDStr, name, new SearchFolderForAssetByNameCallback() {
+                @Override
+                public void callback(String[] assetIDs) {
+                    if (assetIDs.length==0){
+                        // not found.  Create it.
+                        createFolderInFolder(name, folderIDStr, true, new ListFolderByIDCallback() {
+                            @Override
+                            public void callback(FolderInfo info) {
+                                String newNames[] = Arrays.copyOfRange(names, 1, names.length);
+                                // recursive
+                                searchCreateFolders(newNames, info.folder.getDriveId().encodeToString(), callbackInstance);
+                            }
+                        });
+                    }else{
+                        // found. goto the next level
+                        String newNames[] = Arrays.copyOfRange(names, 1, names.length);
+                        searchCreateFolders(newNames, assetIDs[0], callbackInstance);
+                    }
+                }
+            });
+        }else{
+            listFolderByID(folderIDStr, callbackInstance);
+        }
+    }
+
+    public void listSectionRoot(final String sectionName, ListFolderByIDCallback callbackInstance){
+        // find app root in drive root.  Create it if not found.
+        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+        String[] names = {mParentActivity.getString(R.string.app_name), sectionName};
+        searchCreateFolders(names, driveRoot, callbackInstance);
+    }
+
+    /////////////////////////////////////////////////////////////////////////////
+
     public FolderInfo getCurrentFolder(){
         return mFolderStack.peek();
     }
 
-    public boolean createFolder(final String folderName, final boolean gotoFolder){
+    public boolean createFolderInCurrentFolder(final String folderName, final boolean gotoFolder){
         if (mCurrentFolder!=null){
             MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
                     .setTitle(folderName).build();
@@ -267,6 +450,8 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             }
         });
     }
+
+
     ////// questionable methods below ////////
 
     public void popFolderStack(){
@@ -353,7 +538,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     // not found, need to create folder
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "app folder not found.");
                     mCurrentFolder = Drive.DriveApi.getRootFolder(mGoogleApiClient);
-                    createFolder("OffRecord", true);
+                    createFolderInCurrentFolder("OffRecord", true);
                 }else if(count>1){
                     // error, multiple root folder.  What to do?
                 }else{
@@ -418,13 +603,17 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     @Override
     public void onConnected(Bundle bundle) {
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
-        // list current folder
-        if (mCurrentFolder!=null){
-            // list current directory.  Observers will be notified after.
-            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-        }else{
-            gotoAppRoot();
-        }
+        setChanged();
+        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+        notifyObservers();
+        clearChanged();
+//        // list current folder
+//        if (mCurrentFolder!=null){
+//            // list current directory.  Observers will be notified after.
+//            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
+//        }else{
+//            gotoAppRoot();
+//        }
     }
 
     @Override
@@ -503,10 +692,10 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     });
                 }
                 // notify observers that data set have changed
-                setChanged();
-                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
-                notifyObservers();
-                clearChanged();
+//                setChanged();
+//                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+//                notifyObservers();
+//                clearChanged();
             }else{
                 result.release();
             }

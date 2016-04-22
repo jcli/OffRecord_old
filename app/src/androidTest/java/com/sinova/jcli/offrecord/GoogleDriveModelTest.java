@@ -1,20 +1,10 @@
 package com.sinova.jcli.offrecord;
 
-import android.app.Activity;
-import android.app.Application;
 import android.content.Intent;
-import android.support.v7.view.ContextThemeWrapper;
 import android.test.ActivityInstrumentationTestCase2;
-import android.test.ActivityUnitTestCase;
-import android.test.AndroidTestCase;
-import android.test.ApplicationTestCase;
-import android.test.UiThreadTest;
 import android.util.Log;
-import android.util.StringBuilderPrinter;
 
 import com.google.android.gms.drive.Metadata;
-
-import junit.framework.Assert;
 
 import java.util.ArrayList;
 
@@ -129,7 +119,7 @@ public class GoogleDriveModelTest extends ActivityInstrumentationTestCase2<MainA
             String title = prefix+ String.valueOf(i);
             Log.w(TAG, "creating folder: " + title);
             expectedTitles.add(title);
-            mActivity.mGDriveModel.createFolder(title, false);
+            mActivity.mGDriveModel.createFolderInCurrentFolder(title, false);
         }
         Thread.sleep(2000);
         GoogleDriveModel.FolderInfo info = mActivity.mGDriveModel.getCurrentFolder();
