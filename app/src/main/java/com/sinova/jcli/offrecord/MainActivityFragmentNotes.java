@@ -11,7 +11,7 @@ import android.view.ViewGroup;
  * Created by jcli on 4/20/16.
  */
 public class MainActivityFragmentNotes extends Fragment implements FragmentBackStackPressed{
-
+    public static final String SECTION_NAME = "Notes";
     static int currentFragment=0;
     MainActivityFragmentNotesList notesList;
     MainActivityFragmentNotesEdit notesEdit;
@@ -63,8 +63,11 @@ public class MainActivityFragmentNotes extends Fragment implements FragmentBackS
             Fragment currentFragment = getChildFragmentManager().findFragmentById(R.id.notes_child_fragment);
             if (currentFragment==notesList && currentFragment!=null){
                 JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "going up to parent folder.");
-                notesList.goUpLevel();
-                return true;
+                if (notesList.goUpLevel()) {
+                    return true;
+                }else{
+                    return false;
+                }
             }
             return false;
         }

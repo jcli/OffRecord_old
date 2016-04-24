@@ -39,6 +39,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
     private GoogleDriveModel.FolderInfo mCurrentFolder;
     private String mRestoredFolderIDStr;
+    private String mSectionRootIDStr;
 
     @Override
     public boolean onBackPressed() {
@@ -89,6 +90,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.UI, "onCreate called");
         if (savedInstanceState!=null){
             mRestoredFolderIDStr = savedInstanceState.getString("currentFolder");
         }else{
@@ -147,13 +149,21 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             }
         });
 
+        // try to populate the list
+        if (mMainActivity.mGDriveModel.isConnected()){
+            showInitialList();
+        }
+
         return rootView;
     }
 
-    public void goUpLevel(){
-        if (mCurrentFolder.parentFolder!=null) {
+    public boolean goUpLevel(){
+        if (mCurrentFolder.parentFolder!=null && !mSectionRootIDStr.equals(mCurrentFolder.folder.getDriveId().encodeToString())) {
             mMainActivity.mGDriveModel.listFolderByID(mCurrentFolder.parentFolder.getDriveId().encodeToString(),
                     listFolderByIDCallback);
+            return true;
+        }else{
+            return false;
         }
     }
 
@@ -190,12 +200,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
     @Override
     public void update(Observable observable, Object data) {
-        // populate the list
-        if (mRestoredFolderIDStr==null) {
-            mMainActivity.mGDriveModel.listSectionRoot("Notes", listFolderByIDCallback);
-        }else{
-            mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
-        }
+        showInitialList();
     }
 
     //////////////// private helper functions /////////////////
@@ -217,7 +222,6 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                 String name = input.getText().toString();
                 boolean status=true;
                 if (isFolder){
-                    //status = mMainActivity.mGDriveModel.createFolderInCurrentFolder(name, false);
                     mMainActivity.mGDriveModel.createFolderInFolder(name, mCurrentFolder.folder.getDriveId().encodeToString(),
                             false, listFolderByIDCallback);
                 }else {
@@ -238,6 +242,24 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
         builder.show();
     }
 
+    private void showInitialList(){
+        if (mCurrentFolder!=null){
+            mDriveAssetArrayAdapter.clear();
+            mDriveAssetArrayAdapter.addAll(mCurrentFolder.items);
+        }else if (mRestoredFolderIDStr!=null){
+            mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
+        }else{
+            mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME, listFolderByIDCallback);
+        }
+        mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME, new GoogleDriveModel.ListFolderByIDCallback() {
+            @Override
+            public void callback(GoogleDriveModel.FolderInfo info) {
+                if (info!=null){
+                    mSectionRootIDStr=info.folder.getDriveId().encodeToString();
+                }
+            }
+        });
+    }
     //////////// callbacks /////////////
 
     private GoogleDriveModel.ListFolderByIDCallback listFolderByIDCallback = new GoogleDriveModel.ListFolderByIDCallback() {

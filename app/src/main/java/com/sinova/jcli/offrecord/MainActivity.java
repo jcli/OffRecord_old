@@ -86,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
         mNotesFragment = new MainActivityFragmentNotes();
         mChatsFragment = new MainActivityFragmentChats();
         mPeopleFragment = new MainActivityFragmentPeople();
-        mPagerAdapter.addFragment(mNotesFragment, "Notes");
+        mPagerAdapter.addFragment(mNotesFragment, mNotesFragment.SECTION_NAME);
         mPagerAdapter.addFragment(mChatsFragment, "Chats");
         mPagerAdapter.addFragment(mPeopleFragment, "People");
 
