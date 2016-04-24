@@ -221,7 +221,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                     mMainActivity.mGDriveModel.createFolderInFolder(name, mCurrentFolder.folder.getDriveId().encodeToString(),
                             false, listFolderByIDCallback);
                 }else {
-                    status = mMainActivity.mGDriveModel.createTxtFile(name, null);
+                    mMainActivity.mGDriveModel.createTxtFile(name, mCurrentFolder.folder.getDriveId().encodeToString(), listFolderByIDCallback);
                 }
                 if (!status){
                     nameInputPopup(title, isFolder);

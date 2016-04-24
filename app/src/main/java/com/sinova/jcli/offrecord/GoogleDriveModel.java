@@ -232,9 +232,42 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 });
             }
         });
+    }
 
-
-
+    public void createTxtFile(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
+        // check for naming conflict
+        listFolderByID(folderIdStr, new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                for (int i = 0; i < info.items.length; i++) {
+                    if (info.items[i].getTitle().equals(fileName) && !info.items[i].isFolder()) {
+                        // naming conflict !!
+                        if (callbackInstance != null) callbackInstance.callback(null);
+                        return;
+                    }
+                }
+                // no conflict if it gets to here
+                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
+                        .setTitle(fileName)
+                        .setMimeType("text/plain").build();
+                DriveId.decodeFromString(folderIdStr).asDriveFolder()
+                        .createFile(mGoogleApiClient, changeSet, null)
+                        .setResultCallback(new ResultCallback<DriveFolder.DriveFileResult>() {
+                            @Override
+                            public void onResult(DriveFolder.DriveFileResult result) {
+                                if (!result.getStatus().isSuccess()) {
+                                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create file: " + fileName);
+                                    if (callbackInstance!=null) callbackInstance.callback(null);
+                                    return;
+                                }else{
+                                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created folder: "+ fileName);
+                                    // list current folder again
+                                    listFolderByID(folderIdStr, callbackInstance);
+                                }
+                            }
+                        });
+            }
+        });
     }
 
     public void searchCreateFolders(final String names[], final String folderIDStr, final ListFolderByIDCallback callbackInstance) {
