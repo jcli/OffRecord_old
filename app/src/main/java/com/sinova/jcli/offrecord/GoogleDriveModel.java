@@ -44,34 +44,16 @@ import java.util.Observable;
 public class GoogleDriveModel extends Observable implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     private GoogleApiClient mGoogleApiClient;
-    public static String TAG = GoogleDriveModel.class.getSimpleName();
     public static final int REQUEST_CODE_CAPTURE_IMAGE = 1;
     public static final int REQUEST_CODE_CREATOR = 2;
     public static final int REQUEST_CODE_RESOLUTION = 3;
     private Activity mParentActivity = null;
-
-    private GoogleDriveModelCallbacks mCallback=null;
-
-    // current folder
-    private DriveFolder mCurrentFolder=null;
 
     // folder stack
     public class FolderInfo {
         public DriveFolder parentFolder;
         public DriveFolder folder;
         public Metadata items[];
-    }
-    private ArrayDeque<FolderInfo> mFolderStack = new ArrayDeque<FolderInfo>();
-
-    // current list children job id
-    private int mCurrentListChildrenJobID;
-
-    /////////// private state variable /////////////
-
-    /////////// public interface for data notification /////////
-    public interface GoogleDriveModelCallbacks {
-        public void txtFileContentAvaliable(String assetID, String contentStr);
-        public void fileCommitComplete(String assetID);
     }
 
     /////////////// constructor ////////////////////
@@ -88,18 +70,12 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     /////////////////// public API that I will keep////////////////
     public void open(){
         mGoogleApiClient.connect();
-        mCurrentListChildrenJobID=0;
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "connecting...");
     }
 
     public void close(){
         mGoogleApiClient.disconnect();
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "GoogleApiClient disconnected.");
-    }
-
-    public void setCallbackReceiver(GoogleDriveModelCallbacks callback){
-        //TODO: kill all pending jobs or wait for them to finish.
-        mCallback = callback;
     }
 
     public boolean isConnected(){
@@ -151,7 +127,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                         MetadataBuffer buffer = result.getMetadataBuffer();
                         if (buffer.getCount()>0){
                             // have parents. return the first parent.
-                            if (callbackInstance!=null) callbackInstance.callback(mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder());
+                            if (callbackInstance!=null) callbackInstance.callback(buffer.get(0).getDriveId().asDriveFolder());
                         }else{
                             JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Don't have parents.");
                             if (callbackInstance!=null) callbackInstance.callback(null);
@@ -176,7 +152,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 currentFolder.parentFolder = parent;
                 // then list children
                 currentFolder.folder.listChildren(mGoogleApiClient)
-                        .setResultCallback(new ChildrenRetrievedCallback() {
+                        .setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
                             @Override
                             public void onResult(DriveApi.MetadataBufferResult result) {
                                 if (!result.getStatus().isSuccess()) {
@@ -372,252 +348,15 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
 
     /////////////////////////////////////////////////////////////////////////////
 
-    public FolderInfo getCurrentFolder(){
-        return mFolderStack.peek();
-    }
-
-    public boolean createFolderInCurrentFolder(final String folderName, final boolean gotoFolder){
-        if (mCurrentFolder!=null){
-            MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                    .setTitle(folderName).build();
-
-            // check for conflict
-            FolderInfo info = mFolderStack.peek();
-            if (info != null && info.folder == mCurrentFolder && info.items!=null) {
-                for (Metadata item: info.items){
-                    if (item.getTitle().equals(folderName) && item.isFolder()){
-                        return false;
-                    }
-                }
-            }
-            mCurrentFolder.createFolder(mGoogleApiClient, changeSet).setResultCallback(new ResultCallback<DriveFolder.DriveFolderResult>() {
-                @Override
-                public void onResult(@NonNull DriveFolder.DriveFolderResult result) {
-                    if (!result.getStatus().isSuccess()) {
-                        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create a folder");
-                        return;
-                    }else{
-                        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created folder: "+ folderName);
-                    }
-                    if (gotoFolder) {
-                        //set the current folder to app root
-                        mCurrentFolder = result.getDriveFolder();
-                    }
-                    //list the current folder
-                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-
-                }
-            });
-        }else{
-            gotoAppRoot();
-        }
-        return true;
-    }
-
-    public boolean createTxtFile(final String fileName, String content){
-        if (mCurrentFolder!=null){
-            // check for conflict
-            FolderInfo info = mFolderStack.peek();
-            if (info!=null && info.folder==mCurrentFolder && info.items!=null){
-                for (Metadata item: info.items){
-                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "current title: "+item.getTitle());
-                    if (item.getTitle().equals(fileName) && !item.isFolder()){
-                        return false;
-                    }
-                }
-            }else{
-                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "no naming conflict.");
-            }
-            MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                    .setTitle(fileName)
-                    .setMimeType("text/plain").build();
-            mCurrentFolder.createFile(mGoogleApiClient, changeSet, null)
-                    .setResultCallback(new ResultCallback<DriveFolder.DriveFileResult>() {
-                        @Override
-                        public void onResult(DriveFolder.DriveFileResult result) {
-                            if (!result.getStatus().isSuccess()) {
-                                // Handle error
-                                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create a file");
-                                return;
-                            }else{
-                                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created file: "+ fileName);
-                            }
-                            //list the current folder
-                            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-                            //DriveFile file = result.getDriveFile();
-                            // open the file and write
-                        }
-                    });
-        }else {
-            gotoAppRoot();
-        }
-
-        return true;
-    }
-
-
-    ////// questionable methods below ////////
-
-    public void popFolderStack(){
-        if (mFolderStack.size()>1){
-            mFolderStack.pop();
-            mCurrentFolder = mFolderStack.peek().folder;
-            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-        }else if (mFolderStack.size()==1){
-            //should go to parent, unless we are at app root, then we listChildren only.
-            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Going to find the parent of current folder.");
-            mCurrentFolder.listParents(mGoogleApiClient).
-                    setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
-                        @Override
-                        public void onResult(DriveApi.MetadataBufferResult result) {
-                            if (!result.getStatus().isSuccess()) {
-                                return;
-                            }
-                            MetadataBuffer buffer = result.getMetadataBuffer();
-                            if (buffer.getCount()>0){
-                                // have parent. Check the first parent to see if it's drive root.
-                                if(Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId() == buffer.get(0).getDriveId()){
-                                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Can't go higher because parent is drive root.");
-                                }else{
-                                    mFolderStack.pop();
-                                    mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder();
-                                }
-                            }else{
-                                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Don't have parents when it should.");
-                            }
-                            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-                            buffer.release();
-                            result.release();
-                        }
-                    });
-        }else{
-            // empty folder stack.  Don't do anything
-        }
-    }
-
-    public int getFolderStackSize(){
-        return mFolderStack.size();
-    }
-
-    public void gotoFolderByTitle(String folderName){
-        FolderInfo info = mFolderStack.peek();
-        if (info == null){
-            gotoAppRoot();
-            return;
-        }
-        if (info.items!=null){
-            for (Metadata data: info.items){
-                if (data.getTitle().equals(folderName) && data.isFolder()){
-                    // goto folder and list children
-                    mCurrentFolder = data.getDriveId().asDriveFolder();
-                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-                    break;
-                }
-            }
-            // not found
-        }else {
-            // not found
-        }
-
-    }
-
-    public void gotoAppRoot(){
-        // // TODO: 4/14/16 need to solve re-entry problem
-        mFolderStack.clear();
-        // search for "OffRecord" folder
-        Query query = new Query.Builder()
-                .addFilter(Filters.eq(SearchableField.TITLE, "OffRecord"))
-                .addFilter(Filters.eq(SearchableField.MIME_TYPE, "application/vnd.google-apps.folder"))
-                .build();
-        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Searching for OffRecord app root...");
-        Drive.DriveApi.getRootFolder(mGoogleApiClient).queryChildren(mGoogleApiClient, query).setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
-            @Override
-            public void onResult(DriveApi.MetadataBufferResult result) {
-                if (!result.getStatus().isSuccess()) {
-                    return;
-                }
-                MetadataBuffer buffer = result.getMetadataBuffer();
-                int count=buffer.getCount();
-                if (count==0){
-                    // not found, need to create folder
-                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "app folder not found.");
-                    mCurrentFolder = Drive.DriveApi.getRootFolder(mGoogleApiClient);
-                    createFolderInCurrentFolder("OffRecord", true);
-                }else if(count>1){
-                    // error, multiple root folder.  What to do?
-                }else{
-                    // set current folder to app root, then list folder.
-                    MetadataBuffer folderBuffer = result.getMetadataBuffer();
-                    Metadata folderData = folderBuffer.get(0);
-                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "app folder found. name: " + folderData.getTitle());
-                    mCurrentFolder=folderData.getDriveId().asDriveFolder();
-                    mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-                }
-                buffer.release();
-            }
-        });
-    }
-
-    public void deleteAppRoot() {
-        //// TODO: 4/14/16 need to solve re-entry problem 
-        Query query = new Query.Builder()
-                .addFilter(Filters.eq(SearchableField.TITLE, "OffRecord"))
-                .addFilter(Filters.eq(SearchableField.MIME_TYPE, "application/vnd.google-apps.folder"))
-                .build();
-        Drive.DriveApi.getRootFolder(mGoogleApiClient)
-                .queryChildren(mGoogleApiClient, query)
-                .setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
-                    @Override
-                    public void onResult(DriveApi.MetadataBufferResult result) {
-                        if (!result.getStatus().isSuccess()) {
-                            return;
-                        }
-                        MetadataBuffer folderBuffer= result.getMetadataBuffer();
-                        int count = folderBuffer.getCount();
-                        if (count == 0) {
-                            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "no app folder to delete.");
-                            mCurrentFolder=null;
-                            mFolderStack.clear();
-                        } else {
-                            // there should only be one app root
-                            for (int i = 0; i < count; i++) {
-                                Metadata folderData = folderBuffer.get(i);
-                                folderData.getDriveId().asDriveFolder().
-                                        delete(mGoogleApiClient).
-                                        setResultCallback(new ResultCallback<Status>() {
-                                            @Override
-                                            public void onResult(@NonNull Status status) {
-                                                if (status.isSuccess()){
-                                                    mCurrentFolder=null;
-                                                    mFolderStack.clear();
-                                                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "app folder deleted.");
-                                                }
-                                            }
-                                        });
-                            }
-                        }
-                        folderBuffer.release();
-                    }
-                });
-    }
-
-    ////////////////// observable related //////////
-
     ////////////////// callbacks //////////////////
     @Override
     public void onConnected(Bundle bundle) {
+        //TODO: need to better notify connection
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
         setChanged();
         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
         notifyObservers();
         clearChanged();
-//        // list current folder
-//        if (mCurrentFolder!=null){
-//            // list current directory.  Observers will be notified after.
-//            mCurrentFolder.listChildren(mGoogleApiClient).setResultCallback(new ChildrenRetrievedCallback());
-//        }else{
-//            gotoAppRoot();
-//        }
     }
 
     @Override
@@ -639,70 +378,4 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         }
     }
 
-    private class ChildrenRetrievedCallback implements ResultCallback<DriveApi.MetadataBufferResult> {
-
-        private int mJobID;
-        public ChildrenRetrievedCallback() {
-            if (mCurrentListChildrenJobID < 1000) {
-                mJobID = mCurrentListChildrenJobID + 1;
-            }else{
-                mJobID=0;
-            }
-            mCurrentListChildrenJobID=mJobID;
-        }
-
-        @Override
-        public void onResult(DriveApi.MetadataBufferResult result) {
-            // only modify the state if the result is for the current job.
-            // otherwise discard the result
-            if (mJobID == mCurrentListChildrenJobID) {
-                if (!result.getStatus().isSuccess()) {
-                    gotoAppRoot();
-                    return;
-                }
-                // list the folder, and push it onto the stack.
-                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "List children result for job #"+String.valueOf(mJobID));
-                MetadataBuffer buffer = result.getMetadataBuffer();
-                FolderInfo info = mFolderStack.peek();
-                if (info == null || info.folder != mCurrentFolder) {
-                    info = new FolderInfo();
-                    info.folder = mCurrentFolder;
-                    mFolderStack.push(info);
-                }
-                int count = buffer.getCount();
-                if (count > 0) {
-                    //info.items = new FolderInfo.ItemInfo[count];
-                    info.items = new Metadata[count];
-                    for (int i = 0; i < count; i++) {
-                        info.items[i] = buffer.get(i).freeze();
-                    }
-                }
-                buffer.release();
-                result.release();
-                if (info.items!=null) {
-                    Arrays.sort(info.items, new Comparator<Metadata>() {
-                        @Override
-                        public int compare(Metadata lhs, Metadata rhs) {
-                            if (lhs.isFolder() == rhs.isFolder()) {
-                                return lhs.getTitle().compareTo(rhs.getTitle());
-                            } else {
-                                if (lhs.isFolder()) {
-                                    return -1;
-                                } else {
-                                    return 1;
-                                }
-                            }
-                        }
-                    });
-                }
-                // notify observers that data set have changed
-//                setChanged();
-//                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
-//                notifyObservers();
-//                clearChanged();
-            }else{
-                result.release();
-            }
-        }
-    }
 }

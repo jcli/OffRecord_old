@@ -32,7 +32,7 @@ import java.util.Observer;
 /**
  * A placeholder fragment containing a simple view.
  */
-public class MainActivityFragmentNotesList extends Fragment implements Observer, FragmentBackStackPressed, GoogleDriveModel.GoogleDriveModelCallbacks {
+public class MainActivityFragmentNotesList extends Fragment implements Observer, FragmentBackStackPressed {
 
     private MetadataArrayAdapter mDriveAssetArrayAdapter;
     private MainActivity mMainActivity;
@@ -102,7 +102,6 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_note_list, container, false);
         mMainActivity = (MainActivity)getActivity();
-        mMainActivity.mGDriveModel.setCallbackReceiver(this);
         mDriveAssetArrayAdapter = new MetadataArrayAdapter(mMainActivity,
                 R.layout.list_item_drive_asset);
         ListView driveAssetListView = (ListView) rootView.findViewById(R.id.driveAssetListView);
@@ -238,20 +237,6 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
         builder.show();
     }
-
-    //////////// Google Drive model callback
-    @Override
-    public void txtFileContentAvaliable(String assetID, String contentStr) {
-        // launch the edit fragment
-        FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
-        transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(assetID, contentStr)).addToBackStack(null).commit();
-    }
-
-    @Override
-    public void fileCommitComplete(String assetID) {
-
-    }
-
 
     //////////// callbacks /////////////
 
