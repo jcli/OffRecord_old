@@ -8,6 +8,7 @@ import android.graphics.Point;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.widget.EdgeEffectCompat;
 import android.support.v7.app.AlertDialog;
 import android.text.InputType;
 import android.view.Display;
@@ -37,6 +38,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     private MainActivity mMainActivity;
 
     private GoogleDriveModel.FolderInfo mCurrentFolder;
+    private String mRestoredFolderIDStr;
 
     @Override
     public boolean onBackPressed() {
@@ -87,6 +89,11 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (savedInstanceState!=null){
+            mRestoredFolderIDStr = savedInstanceState.getString("currentFolder");
+        }else{
+            mRestoredFolderIDStr=null;
+        }
         setHasOptionsMenu(true);
     }
 
@@ -108,19 +115,19 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                     mMainActivity.mGDriveModel.listFolderByID(item.getDriveId().encodeToString(), listFolderByIDCallback);
                 }else{
                     // open file
-                    mMainActivity.mGDriveModel.openReadTxtFile(item.getDriveId().encodeToString());
+                    //mMainActivity.mGDriveModel.openReadTxtFile(item.getDriveId().encodeToString());
+                    final String assetID = item.getDriveId().encodeToString();
+                    mMainActivity.mGDriveModel.readTxtFile(assetID, new GoogleDriveModel.ReadTxtFileCallback() {
+                        @Override
+                        public void callback(String fileContent) {
+                            // launch the edit fragment
+                            FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
+                            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(assetID, fileContent)).addToBackStack(null).commit();
+                        }
+                    });
                 }
             }
         });
-
-        // populate the list
-//        mMainActivity.mGDriveModel.listSectionRoot("Notes", listFolderByIDCallback);
-
-//        mDriveAssetArrayAdapter.clear();
-//        if (mMainActivity.mGDriveModel.getCurrentFolder()!=null &&
-//                mMainActivity.mGDriveModel.getCurrentFolder().items!=null){
-//            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
-//        }
 
         final FloatingActionsMenu menuMultipleActions = (FloatingActionsMenu) rootView.findViewById(R.id.multiple_actions);
         final FloatingActionButton addFileButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_file);
@@ -175,15 +182,21 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     @Override
+    public void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        if (mCurrentFolder!=null) {
+            state.putString("currentFolder", mCurrentFolder.folder.getDriveId().encodeToString());
+        }
+    }
+
+    @Override
     public void update(Observable observable, Object data) {
-//        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "change detected!!");
-//        mDriveAssetArrayAdapter.clear();
-//        Metadata items[]=mMainActivity.mGDriveModel.getCurrentFolder().items;
-//        if(items!=null) {
-//            mDriveAssetArrayAdapter.addAll(mMainActivity.mGDriveModel.getCurrentFolder().items);
-//        }
         // populate the list
-        mMainActivity.mGDriveModel.listSectionRoot("Notes", listFolderByIDCallback);
+        if (mRestoredFolderIDStr==null) {
+            mMainActivity.mGDriveModel.listSectionRoot("Notes", listFolderByIDCallback);
+        }else{
+            mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
+        }
     }
 
     //////////////// private helper functions /////////////////

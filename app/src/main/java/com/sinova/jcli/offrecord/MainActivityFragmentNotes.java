@@ -32,14 +32,17 @@ public class MainActivityFragmentNotes extends Fragment implements FragmentBackS
         View rootView = inflater.inflate(R.layout.fragment_notes, container, false);
 
         FragmentTransaction transaction = getChildFragmentManager().beginTransaction();
-        notesEdit = new MainActivityFragmentNotesEdit();
-        notesList = new MainActivityFragmentNotesList();
-        if (currentFragment==0) {
-            transaction.replace(R.id.notes_child_fragment, notesList).commit();
-        }else{
-            transaction.replace(R.id.notes_child_fragment, notesEdit).commit();
+//        notesEdit = new MainActivityFragmentNotesEdit();
+        if (notesList==null) {
+            notesList = new MainActivityFragmentNotesList();
         }
-
+        if (getChildFragmentManager().findFragmentById(R.id.notes_child_fragment)==null) {
+//        if (currentFragment==0) {
+            transaction.replace(R.id.notes_child_fragment, notesList).commit();
+//        }else{
+//            transaction.replace(R.id.notes_child_fragment, notesEdit).commit();
+//        }
+        }
         return rootView;
     }
 

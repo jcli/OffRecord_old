@@ -18,7 +18,7 @@ public class MainActivityFragmentChats extends Fragment implements FragmentBackS
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
-
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.UI, "onCreate called");
     }
 
     @Override

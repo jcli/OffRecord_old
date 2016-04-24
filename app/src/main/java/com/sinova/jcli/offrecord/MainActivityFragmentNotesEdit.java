@@ -30,7 +30,10 @@ public class MainActivityFragmentNotesEdit extends Fragment implements FragmentB
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
-
+        if (savedInstanceState!=null){
+            mAssetID=savedInstanceState.getString("mAssetID");
+            mContent=savedInstanceState.getString("mContent");
+        }
     }
 
     @Override
@@ -44,13 +47,28 @@ public class MainActivityFragmentNotesEdit extends Fragment implements FragmentB
 
     public void commitContent(){
         mContent = mEditView.getText().toString();
-        ((MainActivity)getActivity()).mGDriveModel.writeTxtFile(mAssetID, mContent);
+        ((MainActivity)getActivity()).mGDriveModel.writeTxtFile(mAssetID, mContent, new GoogleDriveModel.WriteTxtFileCallback() {
+            @Override
+            public void callback(boolean success) {
+                if (success){
+                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "file write successful: "+mAssetID);
+                }else{
+                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "file write failed: "+mAssetID);
+                }
+            }
+        });
     }
 
     @Override
     public void onPause(){
         commitContent();
         super.onPause();
+    }
+
+    public void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        state.putString("mAssetID", mAssetID);
+        state.putString("mContent", mContent);
     }
 
     @Override

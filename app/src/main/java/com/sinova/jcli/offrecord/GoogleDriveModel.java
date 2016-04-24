@@ -121,7 +121,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             @Override
             public void onResult(DriveApi.MetadataBufferResult result) {
                 if (!result.getStatus().isSuccess()) {
-                    callbackInstance.callback(new String[0]);
+                    if (callbackInstance!=null) callbackInstance.callback(new String[0]);
                     return;
                 }
                 MetadataBuffer buffer = result.getMetadataBuffer();
@@ -130,7 +130,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 for (int i=0; i<count; i++){
                     assetIDs[i]=new String(buffer.get(0).getDriveId().encodeToString());
                 }
-                callbackInstance.callback(assetIDs);
+                if (callbackInstance!=null) callbackInstance.callback(assetIDs);
                 buffer.release();
             }
         });
@@ -145,16 +145,16 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     @Override
                     public void onResult(DriveApi.MetadataBufferResult result) {
                         if (!result.getStatus().isSuccess()) {
-                            callbackInstance.callback(null);
+                            if (callbackInstance!=null) callbackInstance.callback(null);
                             return;
                         }
                         MetadataBuffer buffer = result.getMetadataBuffer();
                         if (buffer.getCount()>0){
                             // have parents. return the first parent.
-                            callbackInstance.callback(mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder());
+                            if (callbackInstance!=null) callbackInstance.callback(mCurrentFolder = buffer.get(0).getDriveId().asDriveFolder());
                         }else{
                             JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Don't have parents.");
-                            callbackInstance.callback(null);
+                            if (callbackInstance!=null) callbackInstance.callback(null);
                         }
                         buffer.release();
                         result.release();
@@ -181,7 +181,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                             public void onResult(DriveApi.MetadataBufferResult result) {
                                 if (!result.getStatus().isSuccess()) {
                                     currentFolder.items = new Metadata[0];
-                                    callbackInstance.callback(currentFolder);
+                                    if (callbackInstance!=null) callbackInstance.callback(currentFolder);
                                     return;
                                 }
                                 MetadataBuffer buffer = result.getMetadataBuffer();
@@ -205,10 +205,10 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                                             }
                                         }
                                     });
-                                    callbackInstance.callback(currentFolder);
+                                    if (callbackInstance!=null) callbackInstance.callback(currentFolder);
                                 }else{
                                     currentFolder.items = new Metadata[0];
-                                    callbackInstance.callback(currentFolder);
+                                    if (callbackInstance!=null) callbackInstance.callback(currentFolder);
                                 }
                                 buffer.release();
                                 result.release();
@@ -226,7 +226,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 for (int i=0; i<info.items.length; i++){
                     if (info.items[i].getTitle().equals(name) && info.items[i].isFolder()){
                         // naming conflict !!
-                        callbackInstance.callback(null);
+                        if (callbackInstance!=null) callbackInstance.callback(null);
                         return;
                     }
                 }
@@ -240,7 +240,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     public void onResult(@NonNull DriveFolder.DriveFolderResult result) {
                         if (!result.getStatus().isSuccess()) {
                             JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Problem while trying to create folder: " + name);
-                            callbackInstance.callback(null);
+                            if (callbackInstance!=null) callbackInstance.callback(null);
                             return;
                         }else{
                             JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created folder: "+ name);
@@ -294,6 +294,80 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
         String[] names = {mParentActivity.getString(R.string.app_name), sectionName};
         searchCreateFolders(names, driveRoot, callbackInstance);
+    }
+
+    public interface ReadTxtFileCallback {
+        void callback(String fileContent);
+    }
+    public void readTxtFile(final String assetID, final ReadTxtFileCallback callbackInstance){
+        final DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
+        file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
+                .setResultCallback(new ResultCallback<DriveContentsResult>() {
+                    @Override
+                    public void onResult(DriveContentsResult result) {
+                        if (!result.getStatus().isSuccess()) {
+                            // display an error saying file can't be opened
+                            return;
+                        }
+                        // DriveContents object contains pointers
+                        // to the actual byte stream
+                        DriveContents contents = result.getDriveContents();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(contents.getInputStream()));
+                        StringBuilder builder = new StringBuilder();
+                        String line;
+                        try {
+                            while ((line = reader.readLine()) != null) {
+                                builder.append(line);
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        String contentsAsString = builder.toString();
+                        contents.discard(mGoogleApiClient);
+                        if (callbackInstance!=null) {
+                            callbackInstance.callback(contentsAsString);
+                        }
+                    }
+                });
+    }
+
+    public interface WriteTxtFileCallback {
+        void callback(boolean success);
+    }
+    public void writeTxtFile(final String assetID, final String contentStr, final WriteTxtFileCallback callbackInstance){
+        DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
+        file.open(mGoogleApiClient, DriveFile.MODE_WRITE_ONLY, null).setResultCallback(new ResultCallback<DriveContentsResult>() {
+            @Override
+            public void onResult(DriveContentsResult result) {
+                if (!result.getStatus().isSuccess()) {
+                    // Handle error
+                    return;
+                }
+                DriveContents driveContents = result.getDriveContents();
+                try{
+                    ParcelFileDescriptor parcelFileDescriptor = driveContents.getParcelFileDescriptor();
+                    FileOutputStream fileOutputStream = new FileOutputStream(parcelFileDescriptor
+                            .getFileDescriptor());
+                    Writer writer = new OutputStreamWriter(fileOutputStream);
+                    writer.write(contentStr);
+                    writer.flush();
+                    writer.close();
+                    fileOutputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
+                        .setLastViewedByMeDate(new Date()).build();
+                driveContents.commit(mGoogleApiClient, changeSet).setResultCallback(new ResultCallback<Status>() {
+                    @Override
+                    public void onResult(Status result) {
+                        if (callbackInstance!=null){
+                            callbackInstance.callback(result.isSuccess());
+                        }
+                    }
+                });
+            }
+        });
     }
 
     /////////////////////////////////////////////////////////////////////////////
@@ -379,76 +453,6 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         }
 
         return true;
-    }
-
-    public void openReadTxtFile(final String assetID){
-        final DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
-        file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
-                .setResultCallback(new ResultCallback<DriveContentsResult>() {
-                    @Override
-                    public void onResult(DriveContentsResult result) {
-                        if (!result.getStatus().isSuccess()) {
-                            // display an error saying file can't be opened
-                            return;
-                        }
-                        // DriveContents object contains pointers
-                        // to the actual byte stream
-                        DriveContents contents = result.getDriveContents();
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(contents.getInputStream()));
-                        StringBuilder builder = new StringBuilder();
-                        String line;
-                        try {
-                            while ((line = reader.readLine()) != null) {
-                                builder.append(line);
-                            }
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        String contentsAsString = builder.toString();
-                        contents.discard(mGoogleApiClient);
-                        if (mCallback!=null){
-                            mCallback.txtFileContentAvaliable(assetID,contentsAsString);
-                        }
-                    }
-                });
-    }
-
-    public void writeTxtFile(final String assetID, final String contentStr){
-        DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
-        file.open(mGoogleApiClient, DriveFile.MODE_WRITE_ONLY, null).setResultCallback(new ResultCallback<DriveContentsResult>() {
-            @Override
-            public void onResult(DriveContentsResult result) {
-                if (!result.getStatus().isSuccess()) {
-                    // Handle error
-                    return;
-                }
-                DriveContents driveContents = result.getDriveContents();
-                try{
-                    ParcelFileDescriptor parcelFileDescriptor = driveContents.getParcelFileDescriptor();
-                    FileOutputStream fileOutputStream = new FileOutputStream(parcelFileDescriptor
-                            .getFileDescriptor());
-                    Writer writer = new OutputStreamWriter(fileOutputStream);
-                    writer.write(contentStr);
-                    writer.flush();
-                    writer.close();
-                    fileOutputStream.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                        .setLastViewedByMeDate(new Date()).build();
-                driveContents.commit(mGoogleApiClient, changeSet).setResultCallback(new ResultCallback<Status>() {
-                    @Override
-                    public void onResult(Status result) {
-                        if (result.isSuccess()) {
-                            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "file write complete: "+contentStr);
-                        }else{
-                            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "file write failed.");
-                        }
-                    }
-                });
-            }
-        });
     }
 
 
