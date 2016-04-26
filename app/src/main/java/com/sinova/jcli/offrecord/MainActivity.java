@@ -3,7 +3,6 @@ package com.sinova.jcli.offrecord;
 import android.content.Intent;
 import android.os.Bundle;
 //import android.support.design.widget.FloatingActionButton;
-import android.os.Debug;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
@@ -17,55 +16,21 @@ import android.view.MenuItem;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class MainActivity extends AppCompatActivity {
 
     public static String TAG = MainActivity.class.getSimpleName();
     public static GoogleDriveModelSecure mGDriveModel;
 
     private ViewPager mViewPager;
-    private OffRecordPagerAdapter2 mPagerAdapter;
+    private OffRecordPagerAdapter mPagerAdapter;
     private TabLayout mTabLayout;
 
     private class OffRecordPagerAdapter extends FragmentPagerAdapter{
 
-        private final List<Fragment> mFragmentList = new ArrayList<>();
-        private final List<String> mFragmentTitleList = new ArrayList<>();
-
-        public OffRecordPagerAdapter(FragmentManager fm) {
-            super(fm);
-        }
-
-        @Override
-        public Fragment getItem(int position) {
-            return mFragmentList.get(position);
-        }
-
-        public void addFragment(Fragment fragment, String title) {
-            mFragmentList.add(fragment);
-            mFragmentTitleList.add(title);
-        }
-
-        @Override
-        public int getCount() {
-            return mFragmentList.size();
-        }
-
-        @Override
-        public CharSequence getPageTitle(int position) {
-            return mFragmentTitleList.get(position);
-        }
-    }
-
-    private class OffRecordPagerAdapter2 extends FragmentPagerAdapter{
-
         final private static int NUM_TABS = 3;
         private Fragment[] mFragmentArray = new Fragment[NUM_TABS];
-        private String[] mFragmentTitleArray = new String[NUM_TABS];
 
-        public OffRecordPagerAdapter2(FragmentManager fm) {
+        public OffRecordPagerAdapter(FragmentManager fm) {
             super(fm);
         }
 
@@ -79,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
                     case 1:
                         mFragmentArray[position]= new MainActivityFragmentChats();
                         break;
-                    case 3:
+                    case 2:
                         mFragmentArray[position]= new MainActivityFragmentPeople();
                         break;
                     default:
@@ -147,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
 
         // setup tabs
         mViewPager = (ViewPager) findViewById(R.id.viewpager);
-        mPagerAdapter = new OffRecordPagerAdapter2(getSupportFragmentManager());
+        mPagerAdapter = new OffRecordPagerAdapter(getSupportFragmentManager());
 
         mViewPager.setAdapter(mPagerAdapter);
 
