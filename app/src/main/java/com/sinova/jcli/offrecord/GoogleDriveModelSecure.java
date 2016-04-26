@@ -39,7 +39,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private SecretKey mKeyEncryptionKey=null;  // must never be stored, and should be cleared on timeout.
     private byte[] mSalt = null;
 
-    private String theTestText = "This is just a simple test";
+    private String theTestText = "x";
 
     public GoogleDriveModelSecure(Activity callerContext) {
         super(callerContext);
@@ -85,29 +85,89 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                 if (fileID!=null){
                     // found validation file.  Do validation
                     JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validation file found. Validating...");
-                    DriveFile driveFile = fileID.asDriveFile();
+                    final DriveFile driveFile = fileID.asDriveFile();
                     // get metadata
                     Map customProperties = fileMetaData.getCustomProperties();
                     String ivString = (String) customProperties.get(new CustomPropertyKey("iv", CustomPropertyKey.PUBLIC));
                     String saltString= (String) customProperties.get(new CustomPropertyKey("salt", CustomPropertyKey.PUBLIC));
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "iv   :" + ivString);
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "salt :" + saltString);
-                    // delete for now:
-                    driveFile.delete(mGoogleApiClient).setResultCallback(new ResultCallback<Status>() {
+                    byte[] iv = Base64.decode(ivString.getBytes(), Base64.DEFAULT);
+                    byte[] salt = Base64.decode(saltString.getBytes(), Base64.DEFAULT);
+                    IvParameterSpec ivParams = new IvParameterSpec(iv);
+                    String password  = "password";
+                    int iterationCount = 10000;
+                    int keyLength = 256;
+                    KeySpec keySpec = new PBEKeySpec(password.toCharArray(), salt,
+                            iterationCount, keyLength);
+                    SecretKeyFactory keyFactory = null;
+                    try {
+                        keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+                    } catch (NoSuchAlgorithmException e) {
+                        e.printStackTrace();
+                    }
+                    byte[] keyBytes = new byte[0];
+                    try {
+                        keyBytes = keyFactory.generateSecret(keySpec).getEncoded();
+                    } catch (InvalidKeySpecException e) {
+                        e.printStackTrace();
+                    }
+                    SecretKey keyToValidate = new SecretKeySpec(keyBytes, "AES");
+
+                    // try decrypt
+                    Cipher cipher = null;
+                    try {
+                        cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                    } catch (NoSuchAlgorithmException e) {
+                        e.printStackTrace();
+                    } catch (NoSuchPaddingException e) {
+                        e.printStackTrace();
+                    }
+                    try {
+                        cipher.init(Cipher.DECRYPT_MODE, keyToValidate, ivParams);
+                    } catch (InvalidKeyException e) {
+                        e.printStackTrace();
+                    } catch (InvalidAlgorithmParameterException e) {
+                        e.printStackTrace();
+                    }
+                    final Cipher finalCipher = cipher;
+                    readTxtFile(fileID.encodeToString(), new ReadTxtFileCallback(){
                         @Override
-                        public void onResult(@NonNull Status status) {
-                            if (status.isSuccess()){
-                                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "password validation file deleted.");
+                        public void callback(String fileContent) {
+                            byte[] plaintext = new byte[0];
+                            try {
+                                byte[] contentBytes = fileContent.getBytes();
+                                //contentBytes[0]=12;
+                                plaintext = finalCipher.doFinal(Base64.decode(contentBytes, Base64.DEFAULT));
+                            } catch (IllegalBlockSizeException e) {
+                                e.printStackTrace();
+                            } catch (BadPaddingException e) {
+                                e.printStackTrace();
                             }
+                            String plainrStr=null;
+                            try {
+                                plainrStr = new String(plaintext , "UTF-8");
+                            } catch (UnsupportedEncodingException e) {
+                                e.printStackTrace();
+                            }
+                            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decoded message: " + plainrStr);
+                            // delete for now:
+                            driveFile.delete(mGoogleApiClient).setResultCallback(new ResultCallback<Status>() {
+                                @Override
+                                public void onResult(@NonNull Status status) {
+                                    if (status.isSuccess()){
+                                        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "password validation file deleted.");
+                                    }
+                                }
+                            });
                         }
                     });
-
                 }else{
                     // validation file not found.  Create it
                     // encrypt the test string
                     Cipher cipher = null;
                     try {
-                        cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                        cipher = Cipher.getInstance("AES/GCM/NoPadding");
                     } catch (NoSuchAlgorithmException e) {
                         e.printStackTrace();
                     } catch (NoSuchPaddingException e) {
