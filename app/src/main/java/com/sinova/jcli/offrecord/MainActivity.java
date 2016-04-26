@@ -23,7 +23,7 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     public static String TAG = MainActivity.class.getSimpleName();
-    public static GoogleDriveModel mGDriveModel;
+    public static GoogleDriveModelSecure mGDriveModel;
 
     private ViewPager mViewPager;
     private OffRecordPagerAdapter2 mPagerAdapter;
@@ -142,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (mGDriveModel==null) {
             JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Fresh app start.  Creating GoogleDriveModel.");
-            mGDriveModel = new GoogleDriveModel(this);
+            mGDriveModel = new GoogleDriveModelSecure(this);
         }
 
         // setup tabs
@@ -180,6 +180,7 @@ public class MainActivity extends AppCompatActivity {
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            mGDriveModel.validateKeyEncryptionKey();
             return true;
         }
 
@@ -206,7 +207,7 @@ public class MainActivity extends AppCompatActivity {
             if (mGDriveModel != null) {
                 mGDriveModel.close();
             }
-            mGDriveModel = new GoogleDriveModel(this);
+            mGDriveModel = new GoogleDriveModelSecure(this);
         }
     }
 

@@ -22,6 +22,7 @@ import com.google.android.gms.drive.DriveId;
 import com.google.android.gms.drive.Metadata;
 import com.google.android.gms.drive.MetadataBuffer;
 import com.google.android.gms.drive.MetadataChangeSet;
+import com.google.android.gms.drive.metadata.CustomPropertyKey;
 import com.google.android.gms.drive.query.Filters;
 import com.google.android.gms.drive.query.Query;
 import com.google.android.gms.drive.query.SearchableField;
@@ -36,6 +37,8 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Observable;
 
 /**
@@ -43,11 +46,11 @@ import java.util.Observable;
  */
 public class GoogleDriveModel extends Observable implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
-    private GoogleApiClient mGoogleApiClient;
+    protected GoogleApiClient mGoogleApiClient;
     public static final int REQUEST_CODE_CAPTURE_IMAGE = 1;
     public static final int REQUEST_CODE_CREATOR = 2;
     public static final int REQUEST_CODE_RESOLUTION = 3;
-    private Activity mParentActivity = null;
+    protected Activity mParentActivity = null;
 
     // folder stack
     public class FolderInfo {
@@ -242,6 +245,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 for (int i = 0; i < info.items.length; i++) {
                     if (info.items[i].getTitle().equals(fileName) && !info.items[i].isFolder()) {
                         // naming conflict !!
+                        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Naming conflic for creating file!");
                         if (callbackInstance != null) callbackInstance.callback(null);
                         return;
                     }
@@ -260,7 +264,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                                     if (callbackInstance!=null) callbackInstance.callback(null);
                                     return;
                                 }else{
-                                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created folder: "+ fileName);
+                                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Created file: "+ fileName);
                                     // list current folder again
                                     listFolderByID(folderIdStr, callbackInstance);
                                 }
@@ -305,6 +309,13 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         searchCreateFolders(names, driveRoot, callbackInstance);
     }
 
+    public void listAppRoot(ListFolderByIDCallback callbackInstance){
+        // find app root in drive root.  Create it if not found.
+        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+        String[] names = {mParentActivity.getString(R.string.app_name)};
+        searchCreateFolders(names, driveRoot, callbackInstance);
+    }
+
     public interface ReadTxtFileCallback {
         void callback(String fileContent);
     }
@@ -344,6 +355,9 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         void callback(boolean success);
     }
     public void writeTxtFile(final String assetID, final String contentStr, final WriteTxtFileCallback callbackInstance){
+        writeTxtFile(assetID, contentStr, callbackInstance, null);
+    }
+    public void writeTxtFile(final String assetID, final String contentStr, final WriteTxtFileCallback callbackInstance, final Map<String, String> metaInfo){
         DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
         file.open(mGoogleApiClient, DriveFile.MODE_WRITE_ONLY, null).setResultCallback(new ResultCallback<DriveContentsResult>() {
             @Override
@@ -365,8 +379,16 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                        .setLastViewedByMeDate(new Date()).build();
+                MetadataChangeSet.Builder builder = new MetadataChangeSet.Builder()
+                        .setLastViewedByMeDate(new Date());
+                if (metaInfo!=null){
+                    for (Map.Entry<String, String> entry : metaInfo.entrySet()){
+                        CustomPropertyKey propertyKey = new CustomPropertyKey(entry.getKey(), CustomPropertyKey.PUBLIC);
+                        builder.setCustomProperty(propertyKey, entry.getValue());
+                    }
+                }
+                MetadataChangeSet changeSet = builder.build();
+
                 driveContents.commit(mGoogleApiClient, changeSet).setResultCallback(new ResultCallback<Status>() {
                     @Override
                     public void onResult(Status result) {
