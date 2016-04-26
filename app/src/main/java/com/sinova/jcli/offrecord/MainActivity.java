@@ -14,6 +14,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 
 import java.util.ArrayList;
@@ -25,12 +26,8 @@ public class MainActivity extends AppCompatActivity {
     public static GoogleDriveModel mGDriveModel;
 
     private ViewPager mViewPager;
-    private OffRecordPagerAdapter mPagerAdapter;
+    private OffRecordPagerAdapter2 mPagerAdapter;
     private TabLayout mTabLayout;
-
-    private MainActivityFragmentNotes mNotesFragment;
-    private MainActivityFragmentChats mChatsFragment;
-    private MainActivityFragmentPeople mPeopleFragment;
 
     private class OffRecordPagerAdapter extends FragmentPagerAdapter{
 
@@ -62,6 +59,74 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private class OffRecordPagerAdapter2 extends FragmentPagerAdapter{
+
+        final private static int NUM_TABS = 3;
+        private Fragment[] mFragmentArray = new Fragment[NUM_TABS];
+        private String[] mFragmentTitleArray = new String[NUM_TABS];
+
+        public OffRecordPagerAdapter2(FragmentManager fm) {
+            super(fm);
+        }
+
+        @Override
+        public Fragment getItem(int position) {
+            if (mFragmentArray[position]==null){
+                switch (position){
+                    case 0:
+                        mFragmentArray[position]= new MainActivityFragmentNotes();
+                        break;
+                    case 1:
+                        mFragmentArray[position]= new MainActivityFragmentChats();
+                        break;
+                    case 3:
+                        mFragmentArray[position]= new MainActivityFragmentPeople();
+                        break;
+                    default:
+                        return null;
+                }
+            }
+            return mFragmentArray[position];
+        }
+
+        @Override
+        public Object instantiateItem(ViewGroup container, int position) {
+            Fragment fragment = (Fragment) super.instantiateItem(container, position);
+            mFragmentArray[position] = fragment;
+            return fragment;
+        }
+
+        @Override
+        public void destroyItem(ViewGroup container, int position, Object object) {
+            mFragmentArray[position]=null;
+            super.destroyItem(container, position, object);
+        }
+
+        @Override
+        public int getCount() {
+            return NUM_TABS;
+        }
+
+        @Override
+        public CharSequence getPageTitle(int position) {
+            String title="";
+            switch (position) {
+                case 0:
+                    title = "Notes";
+                    break;
+                case 1:
+                    title = "Chats";
+                    break;
+                case 2:
+                    title = "People";
+                    break;
+                default:
+                    break;
+            };
+            return title;
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -82,13 +147,7 @@ public class MainActivity extends AppCompatActivity {
 
         // setup tabs
         mViewPager = (ViewPager) findViewById(R.id.viewpager);
-        mPagerAdapter = new OffRecordPagerAdapter(getSupportFragmentManager());
-        mNotesFragment = new MainActivityFragmentNotes();
-        mChatsFragment = new MainActivityFragmentChats();
-        mPeopleFragment = new MainActivityFragmentPeople();
-        mPagerAdapter.addFragment(mNotesFragment, mNotesFragment.SECTION_NAME);
-        mPagerAdapter.addFragment(mChatsFragment, "Chats");
-        mPagerAdapter.addFragment(mPeopleFragment, "People");
+        mPagerAdapter = new OffRecordPagerAdapter2(getSupportFragmentManager());
 
         mViewPager.setAdapter(mPagerAdapter);
 

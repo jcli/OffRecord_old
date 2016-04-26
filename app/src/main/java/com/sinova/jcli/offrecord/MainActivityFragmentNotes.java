@@ -12,9 +12,8 @@ import android.view.ViewGroup;
  */
 public class MainActivityFragmentNotes extends Fragment implements FragmentBackStackPressed{
     public static final String SECTION_NAME = "Notes";
-    static int currentFragment=0;
-    MainActivityFragmentNotesList notesList;
-    MainActivityFragmentNotesEdit notesEdit;
+//    MainActivityFragmentNotesList notesList;
+//    MainActivityFragmentNotesEdit notesEdit;
 
     public MainActivityFragmentNotes() {
     }
@@ -32,16 +31,8 @@ public class MainActivityFragmentNotes extends Fragment implements FragmentBackS
         View rootView = inflater.inflate(R.layout.fragment_notes, container, false);
 
         FragmentTransaction transaction = getChildFragmentManager().beginTransaction();
-//        notesEdit = new MainActivityFragmentNotesEdit();
-        if (notesList==null) {
-            notesList = new MainActivityFragmentNotesList();
-        }
         if (getChildFragmentManager().findFragmentById(R.id.notes_child_fragment)==null) {
-//        if (currentFragment==0) {
-            transaction.replace(R.id.notes_child_fragment, notesList).commit();
-//        }else{
-//            transaction.replace(R.id.notes_child_fragment, notesEdit).commit();
-//        }
+            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesList()).commit();
         }
         return rootView;
     }
@@ -61,9 +52,9 @@ public class MainActivityFragmentNotes extends Fragment implements FragmentBackS
             return true;
         }else {
             Fragment currentFragment = getChildFragmentManager().findFragmentById(R.id.notes_child_fragment);
-            if (currentFragment==notesList && currentFragment!=null){
+            if (currentFragment.getClass()==MainActivityFragmentNotesList.class){
                 JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "going up to parent folder.");
-                if (notesList.goUpLevel()) {
+                if (((MainActivityFragmentNotesList)(currentFragment)).goUpLevel()) {
                     return true;
                 }else{
                     return false;
