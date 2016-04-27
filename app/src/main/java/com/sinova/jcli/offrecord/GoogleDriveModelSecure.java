@@ -34,12 +34,15 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Created by jcli on 4/26/16.
+ * File/folder name contain the encryption information:
+ * "secure keyword","encrypted file/folder name","encypted encyption key","IV","password salt"
  */
 public class GoogleDriveModelSecure extends GoogleDriveModel {
+
     private SecretKey mKeyEncryptionKey=null;  // must never be stored, and should be cleared on timeout.
     private byte[] mSalt = null;
 
-    private String theTestText = "x";
+    private String theTestText = "This is a test string...";
 
     public GoogleDriveModelSecure(Activity callerContext) {
         super(callerContext);
@@ -62,6 +65,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         byte[] keyBytes = new byte[0];
         try {
             keyBytes = keyFactory.generateSecret(keySpec).getEncoded();
+            String keyString = Base64.encodeToString(keyBytes, Base64.URL_SAFE);
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "key text: "+keyString+" size "+keyString.length());
+
         } catch (InvalidKeySpecException e) {
             e.printStackTrace();
         }
@@ -92,8 +98,8 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                     String saltString= (String) customProperties.get(new CustomPropertyKey("salt", CustomPropertyKey.PUBLIC));
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "iv   :" + ivString);
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "salt :" + saltString);
-                    byte[] iv = Base64.decode(ivString.getBytes(), Base64.DEFAULT);
-                    byte[] salt = Base64.decode(saltString.getBytes(), Base64.DEFAULT);
+                    byte[] iv = Base64.decode(ivString.getBytes(), Base64.URL_SAFE);
+                    byte[] salt = Base64.decode(saltString.getBytes(), Base64.URL_SAFE);
                     IvParameterSpec ivParams = new IvParameterSpec(iv);
                     String password  = "password";
                     int iterationCount = 10000;
@@ -138,7 +144,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                             try {
                                 byte[] contentBytes = fileContent.getBytes();
                                 //contentBytes[0]=12;
-                                plaintext = finalCipher.doFinal(Base64.decode(contentBytes, Base64.DEFAULT));
+                                plaintext = finalCipher.doFinal(Base64.decode(contentBytes, Base64.URL_SAFE));
                             } catch (IllegalBlockSizeException e) {
                                 e.printStackTrace();
                             } catch (BadPaddingException e) {
@@ -194,7 +200,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                     } catch (UnsupportedEncodingException e) {
                         e.printStackTrace();
                     }
-                    final String encryptedText = Base64.encodeToString(ciphertext, Base64.DEFAULT);
+                    final String encryptedText = Base64.encodeToString(ciphertext, Base64.URL_SAFE);
+
+                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "encrypted text: "+encryptedText +" size "+encryptedText.length());
                     createTxtFile(mParentActivity.getString(R.string.password_validation_file),
                             info.folder.getDriveId().encodeToString(),
                             new ListFolderByIDCallback() {
@@ -208,8 +216,12 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                                         }
                                     }
                                     Map<String, String> metaData = new HashMap<String, String>();
-                                    metaData.put("salt", Base64.encodeToString(mSalt, Base64.DEFAULT));
-                                    metaData.put("iv", Base64.encodeToString(iv, Base64.DEFAULT));
+                                    String saltStr=Base64.encodeToString(mSalt, Base64.URL_SAFE);
+                                    metaData.put("salt", saltStr);
+                                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "salt text: "+saltStr+" size "+saltStr.length());
+                                    String ivString = Base64.encodeToString(iv, Base64.URL_SAFE);
+                                    metaData.put("iv", ivString);
+                                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "iv text: "+ivString+" size "+ivString.length());
                                     if (fileID!=null){
                                         writeTxtFile(fileID, encryptedText, new WriteTxtFileCallback() {
                                             @Override
