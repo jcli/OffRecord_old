@@ -8,6 +8,7 @@ import android.graphics.Point;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.widget.EdgeEffectCompat;
 import android.support.v7.app.AlertDialog;
 import android.text.InputType;
@@ -26,6 +27,8 @@ import com.getbase.floatingactionbutton.FloatingActionButton;
 import com.getbase.floatingactionbutton.FloatingActionsMenu;
 import com.google.android.gms.drive.Metadata;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -40,6 +43,15 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     private GoogleDriveModel.FolderInfo mCurrentFolder;
     private String mRestoredFolderIDStr;
     private String mSectionRootIDStr;
+    private Map<Integer, String> mCurrentSelections;
+    private View mFragmentView;
+
+    // floating buttons
+    private FloatingActionsMenu2 mMenuMultipleActions;
+    private FloatingActionButton mAddFileButton;
+    private FloatingActionButton mAddFolderButton;
+    private FloatingActionButton mSelectItemsButton;
+    private FloatingActionButton mDeleteSelectionButton;
 
     @Override
     public boolean onBackPressed() {
@@ -111,49 +123,23 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
         driveAssetListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Metadata item = (Metadata)(parent.getAdapter().getItem(position));
-                if (item.isFolder()){
-                    mMainActivity.mGDriveModel.listFolderByID(item.getDriveId().encodeToString(), listFolderByIDCallback);
+                if (mCurrentSelections==null) {
+                    itemAction(parent, view, position, id);
                 }else{
-                    // open file
-                    //mMainActivity.mGDriveModel.openReadTxtFile(item.getDriveId().encodeToString());
-                    final String assetID = item.getDriveId().encodeToString();
-                    mMainActivity.mGDriveModel.readTxtFile(assetID, new GoogleDriveModel.ReadTxtFileCallback() {
-                        @Override
-                        public void callback(String fileContent) {
-                            // launch the edit fragment
-                            FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
-                            transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(assetID, fileContent)).addToBackStack(null).commit();
-                        }
-                    });
+                    itemSelection(parent, view, position, id);
                 }
             }
         });
 
-        final FloatingActionsMenu menuMultipleActions = (FloatingActionsMenu) rootView.findViewById(R.id.multiple_actions);
-        final FloatingActionButton addFileButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_file);
-        addFileButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                menuMultipleActions.collapse();
-                nameInputPopup("File Name", false);
-            }
-        });
-
-        final FloatingActionButton addFolderButton = (FloatingActionButton) rootView.findViewById(R.id.action_add_folder);
-        addFolderButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                menuMultipleActions.collapse();
-                nameInputPopup("Folder Name", true);
-            }
-        });
+        mMenuMultipleActions = (FloatingActionsMenu2) rootView.findViewById(R.id.multiple_actions);
+        setupFloatingButtons();
 
         // try to populate the list
         if (mMainActivity.mGDriveModel.isConnected()){
             showInitialList();
         }
 
+        mFragmentView=rootView;
         return rootView;
     }
 
@@ -204,6 +190,126 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     //////////////// private helper functions /////////////////
+    private void setupFloatingButtons(){
+        mAddFileButton = new FloatingActionButton(mMainActivity);
+        mAddFileButton.setTitle("Add File");
+        mAddFileButton.setColorNormal(ContextCompat.getColor(mMainActivity, R.color.white));
+        mAddFileButton.setColorPressed(ContextCompat.getColor(mMainActivity, R.color.white_pressed));
+        mAddFileButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mMenuMultipleActions.collapse();
+                nameInputPopup("File Name", false);
+            }
+        });
+
+        mAddFolderButton = new FloatingActionButton(mMainActivity);
+        mAddFolderButton.setTitle("Add Folder");
+        mAddFolderButton.setColorNormal(ContextCompat.getColor(mMainActivity, R.color.white));
+        mAddFolderButton.setColorPressed(ContextCompat.getColor(mMainActivity, R.color.white_pressed));
+        mAddFolderButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mMenuMultipleActions.collapse();
+                nameInputPopup("Folder Name", true);
+            }
+        });
+
+        mSelectItemsButton = new FloatingActionButton(mMainActivity);
+        final String defaultTitle="Select Items";
+        final String cancelTitle="Cancel Selections";
+        mSelectItemsButton.setTitle(defaultTitle);
+        mSelectItemsButton.setColorNormal(ContextCompat.getColor(mMainActivity, R.color.white));
+        mSelectItemsButton.setColorPressed(ContextCompat.getColor(mMainActivity, R.color.white_pressed));
+        mSelectItemsButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mMenuMultipleActions.collapse();
+                if (mCurrentSelections==null){
+                    // go into selection mode
+                    mCurrentSelections=new HashMap<Integer, String>();
+                    mSelectItemsButton.setTitle(cancelTitle);
+                    populateSelectionButtons();
+                }else{
+                    // cancel all selection
+                    mCurrentSelections.clear();
+                    mCurrentSelections=null;
+                    mSelectItemsButton.setTitle(defaultTitle);
+                    mDriveAssetArrayAdapter.notifyDataSetChanged();
+                    populateDefalutButtons();
+                }
+            }
+        });
+
+        mDeleteSelectionButton = new FloatingActionButton(mMainActivity);
+        mDeleteSelectionButton.setTitle("Delete Selections");
+        mDeleteSelectionButton.setColorNormal(ContextCompat.getColor(mMainActivity, R.color.white));
+        mDeleteSelectionButton.setColorPressed(ContextCompat.getColor(mMainActivity, R.color.white_pressed));
+        mDeleteSelectionButton.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                mMenuMultipleActions.collapse();
+                mSelectItemsButton.setTitle(defaultTitle);
+                // TODO: delete selections
+                // clear current selections
+                mCurrentSelections.clear();
+                mCurrentSelections=null;
+                mDriveAssetArrayAdapter.notifyDataSetChanged();
+                populateDefalutButtons();
+            }
+        });
+
+        if (mCurrentSelections==null){
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "adding buttons");
+            populateDefalutButtons();
+        }else{
+            populateSelectionButtons();
+        }
+    }
+
+    private void populateDefalutButtons(){
+        mMenuMultipleActions.removeAllButtons();
+        mMenuMultipleActions.addButton(mSelectItemsButton);
+        mMenuMultipleActions.addButton(mAddFileButton);
+        mMenuMultipleActions.addButton(mAddFolderButton);
+    }
+
+    private void populateSelectionButtons(){
+        mMenuMultipleActions.removeAllButtons();
+        mMenuMultipleActions.addButton(mSelectItemsButton);
+        mMenuMultipleActions.addButton(mDeleteSelectionButton);
+    }
+
+    private void itemAction(AdapterView<?> parent, View view, int position, long id){
+        Metadata item = (Metadata)(parent.getAdapter().getItem(position));
+        if (item.isFolder()){
+            mMainActivity.mGDriveModel.listFolderByID(item.getDriveId().encodeToString(), listFolderByIDCallback);
+        }else{
+            // open file
+            final String assetID = item.getDriveId().encodeToString();
+            mMainActivity.mGDriveModel.readTxtFile(assetID, new GoogleDriveModel.ReadTxtFileCallback() {
+                @Override
+                public void callback(String fileContent) {
+                    // launch the edit fragment
+                    FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
+                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(assetID, fileContent)).addToBackStack(null).commit();
+                }
+            });
+        }
+    }
+
+    private void itemSelection(AdapterView<?> parent, View view, int position, long id){
+        Metadata item = (Metadata)(parent.getAdapter().getItem(position));
+        if (mCurrentSelections.containsKey(position)
+                && mCurrentSelections.get(position).equals(item.getDriveId().encodeToString())){
+                //clear selection
+                mCurrentSelections.remove(position);
+            view.setBackgroundColor(ContextCompat.getColor(mMainActivity, R.color.white));
+        }else {
+            mCurrentSelections.put(position, item.getDriveId().encodeToString());
+            view.setBackgroundColor(ContextCompat.getColor(mMainActivity, R.color.pink));
+        }
+    }
 
     private void nameInputPopup(final String title, final boolean isFolder){
         AlertDialog.Builder builder = new AlertDialog.Builder(mMainActivity);
@@ -260,6 +366,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             }
         });
     }
+
     //////////// callbacks /////////////
 
     private GoogleDriveModel.ListFolderByIDCallback listFolderByIDCallback = new GoogleDriveModel.ListFolderByIDCallback() {
@@ -272,4 +379,5 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             }
         }
     };
+
 }

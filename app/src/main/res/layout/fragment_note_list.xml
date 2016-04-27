@@ -17,7 +17,8 @@
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true" />
 
-    <com.getbase.floatingactionbutton.FloatingActionsMenu
+    <!--<com.getbase.floatingactionbutton.FloatingActionsMenu-->
+    <com.sinova.jcli.offrecord.FloatingActionsMenu2
         android:id="@+id/multiple_actions"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -35,22 +36,30 @@
         android:layout_margin="@dimen/fab_margin">
 
 
-        <com.getbase.floatingactionbutton.FloatingActionButton
-            android:id="@+id/action_add_file"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            fab:fab_colorNormal="@color/white"
-            fab:fab_title="Add File"
-            fab:fab_colorPressed="@color/white_pressed"/>
+        <!--<com.getbase.floatingactionbutton.FloatingActionButton-->
+            <!--android:id="@+id/action_select_items"-->
+            <!--android:layout_width="wrap_content"-->
+            <!--android:layout_height="wrap_content"-->
+            <!--fab:fab_colorNormal="@color/white"-->
+            <!--fab:fab_title="Select Items"-->
+            <!--fab:fab_colorPressed="@color/white_pressed"/>-->
 
-        <com.getbase.floatingactionbutton.FloatingActionButton
-            android:id="@+id/action_add_folder"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            fab:fab_colorNormal="@color/white"
-            fab:fab_title="Add Folder"
-            fab:fab_colorPressed="@color/white_pressed"/>
+        <!--<com.getbase.floatingactionbutton.FloatingActionButton-->
+            <!--android:id="@+id/action_add_file"-->
+            <!--android:layout_width="wrap_content"-->
+            <!--android:layout_height="wrap_content"-->
+            <!--fab:fab_colorNormal="@color/white"-->
+            <!--fab:fab_title="Add File"-->
+            <!--fab:fab_colorPressed="@color/white_pressed"/>-->
 
-    </com.getbase.floatingactionbutton.FloatingActionsMenu>
+        <!--<com.getbase.floatingactionbutton.FloatingActionButton-->
+            <!--android:id="@+id/action_add_folder"-->
+            <!--android:layout_width="wrap_content"-->
+            <!--android:layout_height="wrap_content"-->
+            <!--fab:fab_colorNormal="@color/white"-->
+            <!--fab:fab_title="Add Folder"-->
+            <!--fab:fab_colorPressed="@color/white_pressed"/>-->
+
+    </com.sinova.jcli.offrecord.FloatingActionsMenu2>
 
 </RelativeLayout>
