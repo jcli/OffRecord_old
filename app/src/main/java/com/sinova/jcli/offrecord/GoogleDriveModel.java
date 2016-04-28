@@ -19,6 +19,7 @@ import com.google.android.gms.drive.DriveContents;
 import com.google.android.gms.drive.DriveFile;
 import com.google.android.gms.drive.DriveFolder;
 import com.google.android.gms.drive.DriveId;
+import com.google.android.gms.drive.DriveResource;
 import com.google.android.gms.drive.Metadata;
 import com.google.android.gms.drive.MetadataBuffer;
 import com.google.android.gms.drive.MetadataChangeSet;
@@ -37,7 +38,9 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Observable;
 
@@ -401,6 +404,28 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
+    public void deleteItem(String assetID, ResultCallback<Status> callbackInstance){
+        DriveResource driveResource= DriveId.decodeFromString(assetID).asDriveResource();
+        driveResource.delete(mGoogleApiClient).setResultCallback(callbackInstance);
+    }
+    public void deleteMultipleItems(final Deque<String> items, final ResultCallback<Status> callbackInstance){
+        String assetID = items.pop();
+        deleteItem(assetID, new ResultCallback<Status>() {
+            @Override
+            public void onResult(@NonNull Status status) {
+                if (!status.isSuccess()){
+                    callbackInstance.onResult(status);
+                }else {
+                    if (items.size() == 0) {
+                        //end case
+                        callbackInstance.onResult(status);
+                    } else {
+                        deleteMultipleItems(items, callbackInstance);
+                    }
+                }
+            }
+        });
+    }
     /////////////////////////////////////////////////////////////////////////////
 
     ////////////////// callbacks //////////////////

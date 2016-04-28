@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Point;
+import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.support.v4.app.FragmentTransaction;
@@ -25,8 +26,12 @@ import android.widget.TextView;
 
 import com.getbase.floatingactionbutton.FloatingActionButton;
 import com.getbase.floatingactionbutton.FloatingActionsMenu;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.drive.Metadata;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Observable;
@@ -250,11 +255,27 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             public void onClick(View v) {
                 mMenuMultipleActions.collapse();
                 mSelectItemsButton.setTitle(defaultTitle);
-                // TODO: delete selections
-                // clear current selections
-                mCurrentSelections.clear();
+                // delete selections
+                if (!mCurrentSelections.isEmpty()) {
+                    Deque<String> itemIDs = new ArrayDeque<String>();
+                    for (String value : mCurrentSelections.values()) {
+                        itemIDs.push(value);
+                    }
+                    mMainActivity.mGDriveModel.deleteMultipleItems(itemIDs, new ResultCallback<Status>() {
+                        @Override
+                        public void onResult(@NonNull Status status) {
+                            if (status.isSuccess()) {
+                                JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.UI, "multiple items deleted.");
+                            }
+                            mMainActivity.mGDriveModel.listFolderByID(mCurrentFolder.folder.getDriveId().encodeToString(), listFolderByIDCallback);
+                        }
+                    });
+                    // clear current selections
+                    mCurrentSelections.clear();
+                }else{
+                    mDriveAssetArrayAdapter.notifyDataSetChanged();
+                }
                 mCurrentSelections=null;
-                mDriveAssetArrayAdapter.notifyDataSetChanged();
                 populateDefalutButtons();
             }
         });
