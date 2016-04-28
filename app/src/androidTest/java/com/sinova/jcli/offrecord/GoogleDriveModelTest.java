@@ -144,7 +144,7 @@ public class GoogleDriveModelTest extends ActivityInstrumentationTestCase2<MainA
             String title = prefix+ String.valueOf(i);
             Log.w(TAG, "creating file: " + title);
             expectedTitles.add(title);
-            mActivity.mGDriveModel.createTxtFile(title, "");
+            mActivity.mGDriveModel.createTxtFileInFolder(title, "");
         }
         Thread.sleep(2000);
         GoogleDriveModel.FolderInfo info = mActivity.mGDriveModel.getCurrentFolder();

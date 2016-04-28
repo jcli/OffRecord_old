@@ -10,7 +10,6 @@ import android.support.v4.app.Fragment;
 import android.os.Bundle;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.widget.EdgeEffectCompat;
 import android.support.v7.app.AlertDialog;
 import android.text.InputType;
 import android.view.Display;
@@ -25,7 +24,6 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import com.getbase.floatingactionbutton.FloatingActionButton;
-import com.getbase.floatingactionbutton.FloatingActionsMenu;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
 import com.google.android.gms.drive.Metadata;
@@ -352,7 +350,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                     mMainActivity.mGDriveModel.createFolderInFolder(name, mCurrentFolder.folder.getDriveId().encodeToString(),
                             false, listFolderByIDCallback);
                 }else {
-                    mMainActivity.mGDriveModel.createTxtFile(name, mCurrentFolder.folder.getDriveId().encodeToString(), listFolderByIDCallback);
+                    mMainActivity.mGDriveModel.createTxtFileInFolder(name, mCurrentFolder.folder.getDriveId().encodeToString(), listFolderByIDCallback);
                 }
                 if (!status){
                     nameInputPopup(title, isFolder);

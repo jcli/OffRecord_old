@@ -35,6 +35,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
@@ -43,6 +44,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Observable;
+import java.util.Set;
 
 /**
  * Created by jcli on 4/7/16.
@@ -86,36 +88,6 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
 
     public boolean isConnected(){
         return mGoogleApiClient.isConnected();
-    }
-
-    public interface SearchFolderForAssetByNameCallback {
-        void callback(String[] assetIDs);
-    }
-    public void searchFolderForFolderByName(String folderIDStr, String assetName, final SearchFolderForAssetByNameCallback callbackInstance){
-        Query query = new Query.Builder()
-                .addFilter(Filters.eq(SearchableField.TITLE, assetName))
-                .addFilter(Filters.eq(SearchableField.MIME_TYPE, "application/vnd.google-apps.folder"))
-                .build();
-        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "Searching for: " + assetName);
-        DriveId.decodeFromString(folderIDStr)
-                .asDriveFolder().queryChildren(mGoogleApiClient, query)
-                .setResultCallback(new ResultCallback<DriveApi.MetadataBufferResult>() {
-            @Override
-            public void onResult(DriveApi.MetadataBufferResult result) {
-                if (!result.getStatus().isSuccess()) {
-                    if (callbackInstance!=null) callbackInstance.callback(new String[0]);
-                    return;
-                }
-                MetadataBuffer buffer = result.getMetadataBuffer();
-                int count=buffer.getCount();
-                String assetIDs[] = new String[count];
-                for (int i=0; i<count; i++){
-                    assetIDs[i]=new String(buffer.get(0).getDriveId().encodeToString());
-                }
-                if (callbackInstance!=null) callbackInstance.callback(assetIDs);
-                buffer.release();
-            }
-        });
     }
 
     public interface ListParentByIDCallback{
@@ -200,13 +172,30 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
+    public void searchAssetInFolderByNameType(String folderIDStr, final String assetName, final boolean isFolder, final ListFolderByIDCallback callbackInstance){
+        listFolderByID(folderIDStr, new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                ArrayList<Metadata> matchedItems = new ArrayList<Metadata>();
+                for (Metadata item: info.items){
+                    if (nameCompare(assetName, item.getTitle()) && item.isFolder()==isFolder){
+                        matchedItems.add(item.freeze());
+                    }
+                }
+                info.items = new Metadata[matchedItems.size()];
+                matchedItems.toArray(info.items);
+                callbackInstance.callback(info);
+            }
+        });
+    }
+
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder, final ListFolderByIDCallback callbackInstance){
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
                 for (int i=0; i<info.items.length; i++){
-                    if (info.items[i].getTitle().equals(name) && info.items[i].isFolder()){
+                    if (nameCompare(name, info.items[i].getTitle()) && info.items[i].isFolder()){
                         // naming conflict !!
                         if (callbackInstance!=null) callbackInstance.callback(null);
                         return;
@@ -240,13 +229,13 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
-    public void createTxtFile(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
+    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
                 for (int i = 0; i < info.items.length; i++) {
-                    if (info.items[i].getTitle().equals(fileName) && !info.items[i].isFolder()) {
+                    if (nameCompare(fileName, info.items[i].getTitle()) && !info.items[i].isFolder()) {
                         // naming conflict !!
                         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Naming conflic for creating file!");
                         if (callbackInstance != null) callbackInstance.callback(null);
@@ -280,11 +269,11 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     public void searchCreateFolders(final String names[], final String folderIDStr, final ListFolderByIDCallback callbackInstance) {
         if (names.length > 0) {
             final String name = new String(names[0]);
-            searchFolderForFolderByName(folderIDStr, name, new SearchFolderForAssetByNameCallback() {
+            searchAssetInFolderByNameType(folderIDStr, name, true, new ListFolderByIDCallback() {
                 @Override
-                public void callback(String[] assetIDs) {
-                    if (assetIDs.length==0){
-                        // not found.  Create it.
+                public void callback(FolderInfo info) {
+                    if (info.items.length==0){
+                        // not found. Create it.
                         createFolderInFolder(name, folderIDStr, true, new ListFolderByIDCallback() {
                             @Override
                             public void callback(FolderInfo info) {
@@ -296,7 +285,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     }else{
                         // found. goto the next level
                         String newNames[] = Arrays.copyOfRange(names, 1, names.length);
-                        searchCreateFolders(newNames, assetIDs[0], callbackInstance);
+                        searchCreateFolders(newNames, info.items[0].getDriveId().encodeToString(), callbackInstance);
                     }
                 }
             });
@@ -427,6 +416,11 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
     /////////////////////////////////////////////////////////////////////////////
+
+    // override this if you want put encryption data in folder title
+    protected boolean nameCompare(String name, String folderTitle){
+        return folderTitle.equals(name);
+    }
 
     ////////////////// callbacks //////////////////
     @Override

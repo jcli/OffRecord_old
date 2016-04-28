@@ -24,7 +24,6 @@ import java.util.Map;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
@@ -203,7 +202,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                     final String encryptedText = Base64.encodeToString(ciphertext, Base64.URL_SAFE);
 
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "encrypted text: "+encryptedText +" size "+encryptedText.length());
-                    createTxtFile(mParentActivity.getString(R.string.password_validation_file),
+                    createTxtFileInFolder(mParentActivity.getString(R.string.password_validation_file),
                             info.folder.getDriveId().encodeToString(),
                             new ListFolderByIDCallback() {
                                 @Override
