@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Observable;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Created by jcli on 4/7/16.
@@ -190,6 +191,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     }
 
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder, final ListFolderByIDCallback callbackInstance){
+        // TODO: can not re-entry
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
             @Override
@@ -230,6 +232,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     }
 
     public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
+        // TODO: can not re-entry
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
             @Override
@@ -266,13 +269,14 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
+    private AtomicBoolean mSearching = new AtomicBoolean(false);
     public void searchCreateFolders(final String names[], final String folderIDStr, final ListFolderByIDCallback callbackInstance) {
         if (names.length > 0) {
             final String name = new String(names[0]);
             searchAssetInFolderByNameType(folderIDStr, name, true, new ListFolderByIDCallback() {
                 @Override
                 public void callback(FolderInfo info) {
-                    if (info.items.length==0){
+                    if (info.items.length == 0) {
                         // not found. Create it.
                         createFolderInFolder(name, folderIDStr, true, new ListFolderByIDCallback() {
                             @Override
@@ -282,30 +286,44 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                                 searchCreateFolders(newNames, info.folder.getDriveId().encodeToString(), callbackInstance);
                             }
                         });
-                    }else{
+                    } else {
                         // found. goto the next level
                         String newNames[] = Arrays.copyOfRange(names, 1, names.length);
                         searchCreateFolders(newNames, info.items[0].getDriveId().encodeToString(), callbackInstance);
                     }
                 }
             });
-        }else{
-            listFolderByID(folderIDStr, callbackInstance);
+        } else {
+            listFolderByID(folderIDStr, new ListFolderByIDCallback() {
+                @Override
+                public void callback(FolderInfo info) {
+                    callbackInstance.callback(info);
+                    mSearching.set(false);
+                }
+            });
         }
     }
-
     public void listSectionRoot(final String sectionName, ListFolderByIDCallback callbackInstance){
         // find app root in drive root.  Create it if not found.
-        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
-        String[] names = {mParentActivity.getString(R.string.app_name), sectionName};
-        searchCreateFolders(names, driveRoot, callbackInstance);
+        if (!mSearching.get()) {
+            mSearching.set(true);
+            final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+            String[] names = {mParentActivity.getString(R.string.app_name), sectionName};
+            searchCreateFolders(names, driveRoot, callbackInstance);
+        } else {
+            // skip the operation
+        }
     }
-
     public void listAppRoot(ListFolderByIDCallback callbackInstance){
         // find app root in drive root.  Create it if not found.
-        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
-        String[] names = {mParentActivity.getString(R.string.app_name)};
-        searchCreateFolders(names, driveRoot, callbackInstance);
+        if(!mSearching.get()) {
+            mSearching.set(true);
+            final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+            String[] names = {mParentActivity.getString(R.string.app_name)};
+            searchCreateFolders(names, driveRoot, callbackInstance);
+        }else{
+            // skip the operation
+        }
     }
 
     public interface ReadTxtFileCallback {
@@ -403,6 +421,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             @Override
             public void onResult(@NonNull Status status) {
                 if (!status.isSuccess()){
+                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "delete item failed!! " + status.getStatusMessage());
                     callbackInstance.onResult(status);
                 }else {
                     if (items.size() == 0) {

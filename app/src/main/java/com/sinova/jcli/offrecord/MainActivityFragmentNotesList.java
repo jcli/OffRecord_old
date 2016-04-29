@@ -368,22 +368,31 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     private void showInitialList(){
-        if (mCurrentFolder!=null){
-            mDriveAssetArrayAdapter.clear();
-            mDriveAssetArrayAdapter.addAll(mCurrentFolder.items);
-        }else if (mRestoredFolderIDStr!=null){
+        if (mRestoredFolderIDStr!=null){
             mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
+            mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
+                    new GoogleDriveModel.ListFolderByIDCallback() {
+                        @Override
+                        public void callback(GoogleDriveModel.FolderInfo info) {
+                            if (info!=null){
+                                mSectionRootIDStr=info.folder.getDriveId().encodeToString();
+                            }
+                        }
+                    });
         }else{
-            mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME, listFolderByIDCallback);
+            mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
+                    new GoogleDriveModel.ListFolderByIDCallback() {
+                        @Override
+                        public void callback(GoogleDriveModel.FolderInfo info) {
+                            if (info!=null) {
+                                mCurrentFolder = info;
+                                mDriveAssetArrayAdapter.clear();
+                                mDriveAssetArrayAdapter.addAll(info.items);
+                                mSectionRootIDStr=info.folder.getDriveId().encodeToString();
+                            }
+                        }
+                    });
         }
-        mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME, new GoogleDriveModel.ListFolderByIDCallback() {
-            @Override
-            public void callback(GoogleDriveModel.FolderInfo info) {
-                if (info!=null){
-                    mSectionRootIDStr=info.folder.getDriveId().encodeToString();
-                }
-            }
-        });
     }
 
     //////////// callbacks /////////////
