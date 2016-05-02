@@ -57,8 +57,8 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     public static final int REQUEST_CODE_CREATOR = 2;
     public static final int REQUEST_CODE_RESOLUTION = 3;
     protected Activity mParentActivity = null;
+    protected DriveFolder appRootFolder;
 
-    // folder stack
     public class FolderInfo {
         public DriveFolder parentFolder;
         public DriveFolder folder;
@@ -199,7 +199,14 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                 for (int i=0; i<info.items.length; i++){
                     if (nameCompare(name, info.items[i].getTitle()) && info.items[i].isFolder()){
                         // naming conflict !!
-                        if (callbackInstance!=null) callbackInstance.callback(null);
+                        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "folder creation name conflict!");
+                        if (gotoFolder){
+                            // list conflicted folder
+                            listFolderByID(info.items[i].getDriveId().encodeToString(), callbackInstance);
+                        }else{
+                            // list current folder again
+                            listFolderByID(folderIdStr, callbackInstance);
+                        }
                         return;
                     }
                 }
@@ -269,60 +276,15 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
-    private AtomicBoolean mSearching = new AtomicBoolean(false);
-    public void searchCreateFolders(final String names[], final String folderIDStr, final ListFolderByIDCallback callbackInstance) {
-        if (names.length > 0) {
-            final String name = new String(names[0]);
-            searchAssetInFolderByNameType(folderIDStr, name, true, new ListFolderByIDCallback() {
-                @Override
-                public void callback(FolderInfo info) {
-                    if (info.items.length == 0) {
-                        // not found. Create it.
-                        createFolderInFolder(name, folderIDStr, true, new ListFolderByIDCallback() {
-                            @Override
-                            public void callback(FolderInfo info) {
-                                String newNames[] = Arrays.copyOfRange(names, 1, names.length);
-                                // recursive
-                                searchCreateFolders(newNames, info.folder.getDriveId().encodeToString(), callbackInstance);
-                            }
-                        });
-                    } else {
-                        // found. goto the next level
-                        String newNames[] = Arrays.copyOfRange(names, 1, names.length);
-                        searchCreateFolders(newNames, info.items[0].getDriveId().encodeToString(), callbackInstance);
-                    }
-                }
-            });
-        } else {
-            listFolderByID(folderIDStr, new ListFolderByIDCallback() {
-                @Override
-                public void callback(FolderInfo info) {
-                    callbackInstance.callback(info);
-                    mSearching.set(false);
-                }
-            });
-        }
+    protected void initAppRoot(ListFolderByIDCallback callbackInstance){
+        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+        String name = mParentActivity.getString(R.string.app_name);
+        createFolderInFolder(name, driveRoot, true, callbackInstance);
     }
-    public void listSectionRoot(final String sectionName, ListFolderByIDCallback callbackInstance){
-        // find app root in drive root.  Create it if not found.
-        if (!mSearching.get()) {
-            mSearching.set(true);
-            final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
-            String[] names = {mParentActivity.getString(R.string.app_name), sectionName};
-            searchCreateFolders(names, driveRoot, callbackInstance);
-        } else {
-            // skip the operation
-        }
-    }
-    public void listAppRoot(ListFolderByIDCallback callbackInstance){
-        // find app root in drive root.  Create it if not found.
-        if(!mSearching.get()) {
-            mSearching.set(true);
-            final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
-            String[] names = {mParentActivity.getString(R.string.app_name)};
-            searchCreateFolders(names, driveRoot, callbackInstance);
-        }else{
-            // skip the operation
+    protected void initSectionRoot(String sectionRoot, ListFolderByIDCallback callbackInstance){
+        // appRootFolder can not be null.
+        if (appRootFolder!=null) {
+            createFolderInFolder(sectionRoot, appRootFolder.getDriveId().encodeToString(), true, callbackInstance);
         }
     }
 
@@ -434,6 +396,31 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             }
         });
     }
+    public void deleteEverything(){
+        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+        listFolderByID(driveRoot, new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                if (info.items!=null){
+                    Deque<String> itemStrings = new ArrayDeque<String>();
+                    for (Metadata item: info.items){
+                        itemStrings.push(item.getDriveId().encodeToString());
+                    }
+                    deleteMultipleItems(itemStrings, new ResultCallback<Status>() {
+                        @Override
+                        public void onResult(@NonNull Status status) {
+                            if (status.isSuccess()){
+                                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "Everything deleted!!!");
+                            }else{
+                                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "delete item failed!! " + status.getStatusMessage());
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    }
+
     /////////////////////////////////////////////////////////////////////////////
 
     // override this if you want put encryption data in folder title
@@ -445,11 +432,20 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     @Override
     public void onConnected(Bundle bundle) {
         //TODO: need to better notify connection
-        JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
-        setChanged();
-        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
-        notifyObservers();
-        clearChanged();
+        initAppRoot(new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                if (info!=null){
+                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "app root initialized");
+                    appRootFolder = info.folder;
+                }
+                JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
+                setChanged();
+                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+                notifyObservers();
+                clearChanged();
+            }
+        });
     }
 
     @Override

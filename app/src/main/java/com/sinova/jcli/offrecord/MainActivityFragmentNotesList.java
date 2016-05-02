@@ -139,7 +139,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
         // try to populate the list
         if (mMainActivity.mGDriveModel.isConnected()){
-            showInitialList();
+//            showInitialList();
         }
 
         mFragmentView=rootView;
@@ -370,7 +370,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     private void showInitialList(){
         if (mRestoredFolderIDStr!=null){
             mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
-            mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
+            mMainActivity.mGDriveModel.initSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
                     new GoogleDriveModel.ListFolderByIDCallback() {
                         @Override
                         public void callback(GoogleDriveModel.FolderInfo info) {
@@ -380,7 +380,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                         }
                     });
         }else{
-            mMainActivity.mGDriveModel.listSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
+            mMainActivity.mGDriveModel.initSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
                     new GoogleDriveModel.ListFolderByIDCallback() {
                         @Override
                         public void callback(GoogleDriveModel.FolderInfo info) {

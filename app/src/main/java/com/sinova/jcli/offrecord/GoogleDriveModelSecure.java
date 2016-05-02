@@ -63,7 +63,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 //    }
 
     public void validateKeyEncryptionKey(){
-        super.listAppRoot(new ListFolderByIDCallback() {
+        super.listFolderByID(appRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
                 DriveId fileID=null;
@@ -226,7 +226,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     }
 
     public void init(){
-        listAppRoot(new ListFolderByIDCallback() {
+        listFolderByID(appRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
                 if (info.items.length==0){
