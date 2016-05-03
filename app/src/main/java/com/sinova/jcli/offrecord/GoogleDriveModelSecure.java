@@ -6,12 +6,12 @@ import android.util.Base64;
 
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
+import com.google.android.gms.drive.Drive;
 import com.google.android.gms.drive.DriveFile;
-import com.google.android.gms.drive.DriveFolder;
 import com.google.android.gms.drive.DriveId;
 import com.google.android.gms.drive.Metadata;
-import com.google.android.gms.drive.MetadataChangeSet;
 import com.google.android.gms.drive.metadata.CustomPropertyKey;
+import com.google.android.gms.drive.metadata.internal.CustomProperty;
 
 import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
@@ -36,8 +36,13 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Created by jcli on 4/26/16.
- * File/folder name contain the encryption information:
- * "secure keyword","encrypted file/folder name","IV for folder", "encypted encyption key","IV for key","password salt"
+ * Asset name is also encrypted
+ * metadata contain the following
+ *  - IV for the content
+ *  - encrypted encryption key
+ *  - IV for the encryption key
+ *  - password salt (should be same for all asset)
+ *
  */
 public class GoogleDriveModelSecure extends GoogleDriveModel {
 
@@ -56,14 +61,13 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     public GoogleDriveModelSecure(Activity callerContext) {
         super(callerContext);
         secureRandom = new SecureRandom();
+        // shouldn't be in the constructor
+        generateSalt();
+        convertPassToKey("password");  // hard code password for now
     }
 
-//    public GoogleDriveModelSecure(Activity callerContext) {
-//        super(callerContext);
-//    }
-
     public void validateKeyEncryptionKey(){
-        super.listFolderByID(appRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
+        super.listFolderByID(mAppRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
                 DriveId fileID=null;
@@ -225,40 +229,74 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         });
     }
 
-    public void init(){
-        listFolderByID(appRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
-            @Override
-            public void callback(FolderInfo info) {
-                if (info.items.length==0){
-                    // no items at all, need to create password validation file
-                    generateSalt();
-                    convertPassToKey("password");  // hard code password for now
-                    // generate a random string for asset name
-                    byte[] randomName = new byte[30];
-                    secureRandom.nextBytes(randomName);
-                    String randomNameStr = Base64.encodeToString(randomName, Base64.URL_SAFE);
-                    String assetName = encryptAssetName(randomNameStr);
-                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "asset Name: " + assetName);
-                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "asset Name length: " + String.valueOf(assetName.length()));
-                }else {
-                    // any file can be password validation file
-                }
-            }
-        });
-    }
+//    public void init(){
+//        listFolderByID(mAppRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
+//            @Override
+//            public void callback(FolderInfo info) {
+//                if (info.items.length==0){
+//                    // no items at all, need to create password validation file
+//                    generateSalt();
+//                    convertPassToKey("password");  // hard code password for now
+//                    // generate a random string for asset name
+//                    byte[] randomName = new byte[30];
+//                    secureRandom.nextBytes(randomName);
+//                    String randomNameStr = Base64.encodeToString(randomName, Base64.URL_SAFE);
+//                    String assetName = encryptAssetName(randomNameStr);
+//                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "asset Name: " + assetName);
+//                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "asset Name length: " + String.valueOf(assetName.length()));
+//                }else {
+//                    // any file can be password validation file
+//                }
+//            }
+//        });
+//    }
 
     //////////////////////// override public methods ////////////
+
 //    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
 //
 //    }
 
+    @Override
+    public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
+                                          final ListFolderByIDCallback callbackInstance, final Map<String, String> metaInfo){
+        Map<String, String> cipherData = encryptAssetName(name);
+        String encryptedName = cipherData.remove("assetName");
+        super.createFolderInFolder(encryptedName, folderIdStr, gotoFolder, callbackInstance, cipherData);
+    }
+    @Override
+    public void createFolderInFolder(final String name, final String folderIdStr,
+                                     final boolean gotoFolder, final ListFolderByIDCallback callbackInstance){
+        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "secure create folder: " + name);
+        createFolderInFolder(name, folderIdStr, gotoFolder, callbackInstance, null);
+    }
+
+    @Override
+    protected void initAppRoot(ListFolderByIDCallback callbackInstance){
+        final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
+        String name = mParentActivity.getString(R.string.app_name);
+        super.createFolderInFolder(name, driveRoot, true, callbackInstance, null);
+    }
+
+    protected boolean nameCompare(String name, Metadata item){
+        Map<CustomPropertyKey, String> properties = item.getCustomProperties();
+        String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey("encryptionKey", CustomPropertyKey.PUBLIC));
+        if (encryptedEncryptionKey==null) {
+            return item.getTitle().equals(name);
+        }else{
+            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "asset name is encrypted.");
+            return item.getTitle().equals(name);
+        }
+    }
+
     //////////////////////// private helper /////////////////////
+
+    // for the master key encryption key
     private void generateSalt(){
         int saltLength = KEYLENGTH / 8; // same size as key output
         mSalt = new byte[saltLength];
         secureRandom.nextBytes(mSalt);
     }
-
     private void convertPassToKey(String password){
         KeySpec keySpec = new PBEKeySpec(password.toCharArray(), mSalt,
                 ITERATIONS, KEYLENGTH);
@@ -279,6 +317,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         mKeyEncryptionKey = new SecretKeySpec(keyBytes, "AES");
     }
 
+    // general encryption
     private Map<String, String> encryptThenBase64(byte[] input, SecretKey key){
         Map<String, String> values = new HashMap<String, String>();
         // create cipher
@@ -325,10 +364,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private Map<String, String> encryptStringThenBase64(String input, SecretKey key){
         return encryptThenBase64(input.getBytes(), key);
     }
-
-    private String encryptAssetName(String name){
-        String assetName = ASSET_NAME_PREFIX;
-
+    private Map<String, String> encryptAssetName(String name){
         // generate encryption key
         KeyGenerator keyGen = null;
         try {
@@ -346,16 +382,60 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         // encrypt the key using the key encryption key
         Map<String, String> encryptedEncryptionKeyandIV = encryptThenBase64(secretKey.getEncoded(), mKeyEncryptionKey);
 
-        assetName += cipherAndIV.get("cipherText") + " " + cipherAndIV.get("iv") + " " +
-                encryptedEncryptionKeyandIV.get("cipherText") + " " +
-                encryptedEncryptionKeyandIV.get("iv") + " " +
-                Base64.encodeToString(mSalt, Base64.URL_SAFE);
+        Map<String, String> assetInfo = new HashMap<>();
 
+        assetInfo.put("assetName", cipherAndIV.get("cipherText"));
+        assetInfo.put("assetNameIV", cipherAndIV.get("iv"));
+        assetInfo.put("encryptionKey", encryptedEncryptionKeyandIV.get("cipherText"));
+        assetInfo.put("encryptionKeyIV", encryptedEncryptionKeyandIV.get("iv"));
+        assetInfo.put("salt", Base64.encodeToString(mSalt, Base64.DEFAULT));
+        return assetInfo;
+    }
+
+    // general decryption
+    private byte[] decryptData(byte[] input, SecretKey key, byte[] iv){
+        Cipher cipher = null;
+        try {
+            cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (NoSuchPaddingException e) {
+            e.printStackTrace();
+        }
+        IvParameterSpec ivParams = new IvParameterSpec(iv);
+        try {
+            cipher.init(Cipher.DECRYPT_MODE, key, ivParams);
+        } catch (InvalidKeyException e) {
+            e.printStackTrace();
+        } catch (InvalidAlgorithmParameterException e) {
+            e.printStackTrace();
+        }
+        byte[] plaintext = new byte[0];
+        try {
+            //contentBytes[0]=12;
+            plaintext = cipher.doFinal(input);
+        } catch (IllegalBlockSizeException e) {
+            e.printStackTrace();
+        } catch (BadPaddingException e) {
+            e.printStackTrace();
+        }
+        return plaintext;
+    }
+    private byte[] decryptStringToData(String input, SecretKey key, byte[] iv){
+        return decryptData(Base64.decode(input, Base64.DEFAULT), key, iv);
+    }
+    private String decryptStringToString(String input, SecretKey key, byte[] iv){
+        return new String(decryptStringToData(input, key, iv));
+    }
+    private String decryptAssetName(String encryptedName, Map<String, String> encryptInfo){
+        // decrypt the encryption key using master key
+        byte[] keyIV = Base64.decode(encryptInfo.get("encryptionKeyIV"), Base64.DEFAULT);
+        byte[] encryptionKeyBytes = decryptStringToData(encryptedName, mKeyEncryptionKey, keyIV);
+        SecretKey encryptionKey = new SecretKeySpec(encryptionKeyBytes, "AES");
+
+        // decrypt the name
+        byte[] assetNameIV=Base64.decode(encryptInfo.get("assetNameIV"), Base64.DEFAULT);
+        String assetName = decryptStringToString(encryptedName, encryptionKey, assetNameIV);
         return assetName;
     }
-
-    private String decryptAssetName(String assetName){
-        return null;
-    }
-
 }

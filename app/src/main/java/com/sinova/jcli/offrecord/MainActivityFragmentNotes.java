@@ -42,7 +42,6 @@ public class MainActivityFragmentNotes extends Fragment implements FragmentBackS
         super.onStop();
     }
 
-
     @Override
     public boolean onBackPressed() {
         int childBackStackCount = getChildFragmentManager().getBackStackEntryCount();

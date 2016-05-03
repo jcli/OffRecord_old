@@ -24,9 +24,6 @@ import com.google.android.gms.drive.Metadata;
 import com.google.android.gms.drive.MetadataBuffer;
 import com.google.android.gms.drive.MetadataChangeSet;
 import com.google.android.gms.drive.metadata.CustomPropertyKey;
-import com.google.android.gms.drive.query.Filters;
-import com.google.android.gms.drive.query.Query;
-import com.google.android.gms.drive.query.SearchableField;
 
 import java.io.BufferedReader;
 import java.io.FileOutputStream;
@@ -40,12 +37,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Observable;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Created by jcli on 4/7/16.
@@ -57,7 +50,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     public static final int REQUEST_CODE_CREATOR = 2;
     public static final int REQUEST_CODE_RESOLUTION = 3;
     protected Activity mParentActivity = null;
-    protected DriveFolder appRootFolder;
+    protected DriveFolder mAppRootFolder;
 
     public class FolderInfo {
         public DriveFolder parentFolder;
@@ -179,7 +172,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             public void callback(FolderInfo info) {
                 ArrayList<Metadata> matchedItems = new ArrayList<Metadata>();
                 for (Metadata item: info.items){
-                    if (nameCompare(assetName, item.getTitle()) && item.isFolder()==isFolder){
+                    if (nameCompare(assetName, item) && item.isFolder()==isFolder){
                         matchedItems.add(item.freeze());
                     }
                 }
@@ -190,14 +183,15 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
-    public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder, final ListFolderByIDCallback callbackInstance){
+    public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
+                                     final ListFolderByIDCallback callbackInstance, final Map<String, String> metaInfo){
         // TODO: can not re-entry
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
                 for (int i=0; i<info.items.length; i++){
-                    if (nameCompare(name, info.items[i].getTitle()) && info.items[i].isFolder()){
+                    if (nameCompare(name, info.items[i]) && info.items[i].isFolder()){
                         // naming conflict !!
                         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "folder creation name conflict!");
                         if (gotoFolder){
@@ -211,8 +205,16 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     }
                 }
                 // no conflict if it gets to here
-                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                        .setTitle(name).build();
+                MetadataChangeSet.Builder builder = new MetadataChangeSet.Builder();
+                builder.setTitle(name);
+                if (metaInfo!=null){
+                    for (Map.Entry<String, String> entry : metaInfo.entrySet()){
+                        CustomPropertyKey propertyKey = new CustomPropertyKey(entry.getKey(), CustomPropertyKey.PUBLIC);
+                        builder.setCustomProperty(propertyKey, entry.getValue());
+                    }
+                }
+                MetadataChangeSet changeSet = builder.build();
+
                 DriveId.decodeFromString(folderIdStr).asDriveFolder()
                         .createFolder(mGoogleApiClient, changeSet)
                         .setResultCallback(new ResultCallback<DriveFolder.DriveFolderResult>() {
@@ -237,15 +239,19 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             }
         });
     }
+    public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
+                                     final ListFolderByIDCallback callbackInstance){
+        createFolderInFolder(name, folderIdStr, gotoFolder, callbackInstance, null);
+    }
 
     public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
         // TODO: can not re-entry
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
             @Override
-            public void callback(FolderInfo info) {
+                public void callback(FolderInfo info) {
                 for (int i = 0; i < info.items.length; i++) {
-                    if (nameCompare(fileName, info.items[i].getTitle()) && !info.items[i].isFolder()) {
+                    if (nameCompare(fileName, info.items[i]) && !info.items[i].isFolder()) {
                         // naming conflict !!
                         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Naming conflic for creating file!");
                         if (callbackInstance != null) callbackInstance.callback(null);
@@ -282,9 +288,9 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         createFolderInFolder(name, driveRoot, true, callbackInstance);
     }
     protected void initSectionRoot(String sectionRoot, ListFolderByIDCallback callbackInstance){
-        // appRootFolder can not be null.
-        if (appRootFolder!=null) {
-            createFolderInFolder(sectionRoot, appRootFolder.getDriveId().encodeToString(), true, callbackInstance);
+        // mAppRootFolder can not be null.
+        if (mAppRootFolder !=null) {
+            createFolderInFolder(sectionRoot, mAppRootFolder.getDriveId().encodeToString(), true, callbackInstance);
         }
     }
 
@@ -424,8 +430,9 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     /////////////////////////////////////////////////////////////////////////////
 
     // override this if you want put encryption data in folder title
-    protected boolean nameCompare(String name, String folderTitle){
-        return folderTitle.equals(name);
+    //protected boolean nameCompare(String name, String folderTitle){
+    protected boolean nameCompare(String name, Metadata item){
+        return item.getTitle().equals(name);
     }
 
     ////////////////// callbacks //////////////////
@@ -437,7 +444,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             public void callback(FolderInfo info) {
                 if (info!=null){
                     JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "app root initialized");
-                    appRootFolder = info.folder;
+                    mAppRootFolder = info.folder;
                 }
                 JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
                 setChanged();
