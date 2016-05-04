@@ -281,12 +281,6 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         cipherData.put(SecureProperties.SALT.toString(), Base64.encodeToString(mSalt, Base64.URL_SAFE));
         super.createFolderInFolder(encryptedName, folderIdStr, gotoFolder, callbackInstance, cipherData);
     }
-    @Override
-    public void createFolderInFolder(final String name, final String folderIdStr,
-                                     final boolean gotoFolder, final ListFolderByIDCallback callbackInstance){
-        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "secure create folder: " + name);
-        createFolderInFolder(name, folderIdStr, gotoFolder, callbackInstance, null);
-    }
 
     @Override
     protected void initAppRoot(ListFolderByIDCallback callbackInstance){
@@ -295,7 +289,8 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         super.createFolderInFolder(name, driveRoot, true, callbackInstance, null);
     }
 
-    protected boolean nameCompare(String name, Metadata item){
+    @Override
+    protected boolean nameCompare(String name, Metadata item, Map<String, String> metaInfo){
         Map<CustomPropertyKey, String> properties = item.getCustomProperties();
         String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey(SecureProperties.ENCRYPTION_KEY.toString(), CustomPropertyKey.PUBLIC));
         if (encryptedEncryptionKey==null) {
@@ -303,6 +298,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
             return item.getTitle().equals(name);
         }else{
             JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "asset name is encrypted.");
+            // decrypt drive asset name
             Map<String, String> encryptInfo = new HashMap<>();
             for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
                 String key = entry.getKey().getKey();
@@ -310,8 +306,12 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                 encryptInfo.put(key, value);
             }
             String clearTitle = decryptAssetName(item.getTitle(), encryptInfo);
-            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "clear title: " + clearTitle);
-            return item.getTitle().equals(name);
+
+            // decrypt input name
+            String clearInputTitle = decryptAssetName(name, metaInfo);
+            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "name: " + clearInputTitle);
+            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "name2: " + clearTitle);
+            return clearTitle.equals(clearInputTitle);
         }
     }
 

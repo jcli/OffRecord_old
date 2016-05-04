@@ -172,7 +172,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             public void callback(FolderInfo info) {
                 ArrayList<Metadata> matchedItems = new ArrayList<Metadata>();
                 for (Metadata item: info.items){
-                    if (nameCompare(assetName, item) && item.isFolder()==isFolder){
+                    if (nameCompare(assetName, item, null) && item.isFolder()==isFolder){
                         matchedItems.add(item.freeze());
                     }
                 }
@@ -191,7 +191,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             @Override
             public void callback(FolderInfo info) {
                 for (int i=0; i<info.items.length; i++){
-                    if (nameCompare(name, info.items[i]) && info.items[i].isFolder()){
+                    if (nameCompare(name, info.items[i], metaInfo) && info.items[i].isFolder()){
                         // naming conflict !!
                         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "folder creation name conflict!");
                         if (gotoFolder){
@@ -251,7 +251,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
             @Override
                 public void callback(FolderInfo info) {
                 for (int i = 0; i < info.items.length; i++) {
-                    if (nameCompare(fileName, info.items[i]) && !info.items[i].isFolder()) {
+                    if (nameCompare(fileName, info.items[i], null) && !info.items[i].isFolder()) {
                         // naming conflict !!
                         JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Naming conflic for creating file!");
                         if (callbackInstance != null) callbackInstance.callback(null);
@@ -431,7 +431,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
 
     // override this if you want put encryption data in folder title
     //protected boolean nameCompare(String name, String folderTitle){
-    protected boolean nameCompare(String name, Metadata item){
+    protected boolean nameCompare(String name, Metadata item, Map<String, String> metaInfo){
         return item.getTitle().equals(name);
     }
 
