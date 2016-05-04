@@ -58,6 +58,22 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         public String itemNamesPlainText[];
     }
 
+    private enum SecureProperties {
+        ENCRYPTION_KEY("encryption_key"),
+        ENCRYPTION_KEY_IV("encryption_key_iv"),
+        ASSET_NAME("asset_name"),
+        ASSET_NAME_IV("asset_name_iv"),
+        CIPHER_TEXT("cipher_text"),
+        CIPHER_TEXT_IV("cipher_text_iv"),
+        SALT("salt");
+
+        private String value;
+        private SecureProperties(String value){this.value=value;}
+        public String getValue(){return this.value;}
+        @Override
+        public String toString(){return this.value;}
+    }
+
     public GoogleDriveModelSecure(Activity callerContext) {
         super(callerContext);
         secureRandom = new SecureRandom();
@@ -251,17 +267,18 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 //        });
 //    }
 
-    //////////////////////// override public methods ////////////
+    ////////////////////// override public methods ////////////
 
-//    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
-//
-//    }
+    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
+
+    }
 
     @Override
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
                                           final ListFolderByIDCallback callbackInstance, final Map<String, String> metaInfo){
         Map<String, String> cipherData = encryptAssetName(name);
-        String encryptedName = cipherData.remove("assetName");
+        String encryptedName = cipherData.remove(SecureProperties.ASSET_NAME.toString());
+        cipherData.put(SecureProperties.SALT.toString(), Base64.encodeToString(mSalt, Base64.URL_SAFE));
         super.createFolderInFolder(encryptedName, folderIdStr, gotoFolder, callbackInstance, cipherData);
     }
     @Override
@@ -280,11 +297,20 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 
     protected boolean nameCompare(String name, Metadata item){
         Map<CustomPropertyKey, String> properties = item.getCustomProperties();
-        String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey("encryptionKey", CustomPropertyKey.PUBLIC));
+        String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey(SecureProperties.ENCRYPTION_KEY.toString(), CustomPropertyKey.PUBLIC));
         if (encryptedEncryptionKey==null) {
+            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "asset name is not encrypted.");
             return item.getTitle().equals(name);
         }else{
             JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "asset name is encrypted.");
+            Map<String, String> encryptInfo = new HashMap<>();
+            for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
+                String key = entry.getKey().getKey();
+                String value = entry.getValue();
+                encryptInfo.put(key, value);
+            }
+            String clearTitle = decryptAssetName(item.getTitle(), encryptInfo);
+            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "clear title: " + clearTitle);
             return item.getTitle().equals(name);
         }
     }
@@ -319,7 +345,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 
     // general encryption
     private Map<String, String> encryptThenBase64(byte[] input, SecretKey key){
+        //Map<String, String> values = new HashMap<String, String>();
         Map<String, String> values = new HashMap<String, String>();
+
         // create cipher
         Cipher cipher = null;
         try {
@@ -357,11 +385,19 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         }
         final String encryptedText = Base64.encodeToString(ciphertext, Base64.URL_SAFE);
 
-        values.put("cipherText", encryptedText);
-        values.put("iv", ivString);
+        values.put(SecureProperties.CIPHER_TEXT.toString(), encryptedText);
+        values.put(SecureProperties.CIPHER_TEXT_IV.toString(), ivString);
+
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted text: "+ encryptedText);
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted text iv: "+ ivString);
+        byte[] plainText= decryptStringToData(encryptedText, key, Base64.decode(ivString, Base64.URL_SAFE));
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "plaintext: " + Base64.encodeToString(plainText, Base64.URL_SAFE));
+
+        // test decryption
         return  values;
     }
     private Map<String, String> encryptStringThenBase64(String input, SecretKey key){
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypting: " + input);
         return encryptThenBase64(input.getBytes(), key);
     }
     private Map<String, String> encryptAssetName(String name){
@@ -384,11 +420,21 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 
         Map<String, String> assetInfo = new HashMap<>();
 
-        assetInfo.put("assetName", cipherAndIV.get("cipherText"));
-        assetInfo.put("assetNameIV", cipherAndIV.get("iv"));
-        assetInfo.put("encryptionKey", encryptedEncryptionKeyandIV.get("cipherText"));
-        assetInfo.put("encryptionKeyIV", encryptedEncryptionKeyandIV.get("iv"));
-        assetInfo.put("salt", Base64.encodeToString(mSalt, Base64.DEFAULT));
+        assetInfo.put(SecureProperties.ASSET_NAME.toString(), cipherAndIV.get(SecureProperties.CIPHER_TEXT.toString()));
+        assetInfo.put(SecureProperties.ASSET_NAME_IV.toString(), cipherAndIV.get(SecureProperties.CIPHER_TEXT_IV.toString()));
+        assetInfo.put(SecureProperties.ENCRYPTION_KEY.toString(), encryptedEncryptionKeyandIV.get(SecureProperties.CIPHER_TEXT.toString()));
+        assetInfo.put(SecureProperties.ENCRYPTION_KEY_IV.toString(), encryptedEncryptionKeyandIV.get(SecureProperties.CIPHER_TEXT_IV.toString()));
+        assetInfo.put(SecureProperties.SALT.toString(), Base64.encodeToString(mSalt, Base64.URL_SAFE));
+
+        // test decryption
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted key : " + assetInfo.get(SecureProperties.ENCRYPTION_KEY.toString()));
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted key iv : " + assetInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()));
+
+        byte[] keyIV = Base64.decode(assetInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()), Base64.URL_SAFE);
+        byte[] encryptionKeyBytes = decryptStringToData(assetInfo.get(SecureProperties.ENCRYPTION_KEY.toString()), mKeyEncryptionKey, keyIV);
+        SecretKey encryptionKey = new SecretKeySpec(encryptionKeyBytes, "AES");
+
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decrypted encryption key: " + Base64.encodeToString(encryptionKey.getEncoded(), Base64.URL_SAFE));
         return assetInfo;
     }
 
@@ -410,9 +456,8 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         } catch (InvalidAlgorithmParameterException e) {
             e.printStackTrace();
         }
-        byte[] plaintext = new byte[0];
+        byte[] plaintext=null;
         try {
-            //contentBytes[0]=12;
             plaintext = cipher.doFinal(input);
         } catch (IllegalBlockSizeException e) {
             e.printStackTrace();
@@ -422,20 +467,33 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         return plaintext;
     }
     private byte[] decryptStringToData(String input, SecretKey key, byte[] iv){
-        return decryptData(Base64.decode(input, Base64.DEFAULT), key, iv);
+        return decryptData(Base64.decode(input, Base64.URL_SAFE), key, iv);
     }
     private String decryptStringToString(String input, SecretKey key, byte[] iv){
         return new String(decryptStringToData(input, key, iv));
     }
     private String decryptAssetName(String encryptedName, Map<String, String> encryptInfo){
+        // check the salt
+        String saltStr = encryptInfo.get(SecureProperties.SALT.toString());
+        if (!Base64.encodeToString(mSalt, Base64.URL_SAFE).equals(saltStr)){
+            // salt changed, regenerate master key encryption key
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "master key encryption key salt changed!");
+            mSalt = Base64.decode(saltStr, Base64.URL_SAFE);
+            convertPassToKey("password");
+        }else {
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "same salt!");
+        }
         // decrypt the encryption key using master key
-        byte[] keyIV = Base64.decode(encryptInfo.get("encryptionKeyIV"), Base64.DEFAULT);
-        byte[] encryptionKeyBytes = decryptStringToData(encryptedName, mKeyEncryptionKey, keyIV);
+        byte[] keyIV = Base64.decode(encryptInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()), Base64.URL_SAFE);
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encryption key : " + encryptInfo.get(SecureProperties.ENCRYPTION_KEY.toString()));
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encryption key iv: " + encryptInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()));
+        byte[] encryptionKeyBytes = decryptStringToData(encryptInfo.get(SecureProperties.ENCRYPTION_KEY.toString()), mKeyEncryptionKey, keyIV);
         SecretKey encryptionKey = new SecretKeySpec(encryptionKeyBytes, "AES");
 
         // decrypt the name
-        byte[] assetNameIV=Base64.decode(encryptInfo.get("assetNameIV"), Base64.DEFAULT);
+        byte[] assetNameIV=Base64.decode(encryptInfo.get(SecureProperties.ASSET_NAME_IV.toString()), Base64.URL_SAFE);
         String assetName = decryptStringToString(encryptedName, encryptionKey, assetNameIV);
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decrypted asset name: " + assetName);
         return assetName;
     }
 }
