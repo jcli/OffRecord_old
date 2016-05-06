@@ -309,8 +309,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 
             // decrypt input name
             String clearInputTitle = decryptAssetName(name, metaInfo);
-            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "name: " + clearInputTitle);
-            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "name2: " + clearTitle);
+
             return clearTitle.equals(clearInputTitle);
         }
     }
