@@ -11,7 +11,6 @@ import com.google.android.gms.drive.DriveFile;
 import com.google.android.gms.drive.DriveId;
 import com.google.android.gms.drive.Metadata;
 import com.google.android.gms.drive.metadata.CustomPropertyKey;
-import com.google.android.gms.drive.metadata.internal.CustomProperty;
 
 import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
@@ -50,7 +49,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private final int KEYLENGTH = 256;
     private final String ASSET_NAME_PREFIX = "secure ";
     private SecretKey mKeyEncryptionKey=null;  // must never be stored, and should be cleared on timeout.
-    private byte[] mSalt = null;               // should be the same for every asset
+    private String mPasswordString = "password"; // must never be stored, and should be cleared on timeout.
+
+    private byte[] mSalt = {1,2,3,4};               // should be the same for every asset
     private SecureRandom secureRandom;
     private String theTestText = "This is a test string...";
 
@@ -77,9 +78,6 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     public GoogleDriveModelSecure(Activity callerContext) {
         super(callerContext);
         secureRandom = new SecureRandom();
-        // shouldn't be in the constructor
-        generateSalt();
-        convertPassToKey("password");  // hard code password for now
     }
 
     public void validateKeyEncryptionKey(){
@@ -245,48 +243,80 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         });
     }
 
-//    public void init(){
-//        listFolderByID(mAppRootFolder.getDriveId().encodeToString(), new ListFolderByIDCallback() {
+    ////////////////////// override public methods ////////////
+
+//    @Override
+//    public void listFolderByID (String folderIDStr, final ListFolderByIDCallback callbackInstance){
+//        super.listFolderByID(folderIDStr, new ListFolderByIDCallback() {
 //            @Override
 //            public void callback(FolderInfo info) {
-//                if (info.items.length==0){
-//                    // no items at all, need to create password validation file
-//                    generateSalt();
-//                    convertPassToKey("password");  // hard code password for now
-//                    // generate a random string for asset name
-//                    byte[] randomName = new byte[30];
-//                    secureRandom.nextBytes(randomName);
-//                    String randomNameStr = Base64.encodeToString(randomName, Base64.URL_SAFE);
-//                    String assetName = encryptAssetName(randomNameStr);
-//                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "asset Name: " + assetName);
-//                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "asset Name length: " + String.valueOf(assetName.length()));
-//                }else {
-//                    // any file can be password validation file
-//                }
+//
 //            }
 //        });
 //    }
 
-    ////////////////////// override public methods ////////////
-
-    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
-
+    @Override
+    public void createTxtFileInFolder(final String fileName, final String folderIdStr,
+                                      final Map<String, String> metaInfo, final ListFolderByIDCallback callbackInstance){
+        Map<String, String> cipherData = encryptAssetName(fileName);
+        String encryptedName = cipherData.remove(SecureProperties.ASSET_NAME.toString());
+        cipherData.put(SecureProperties.SALT.toString(), Base64.encodeToString(mSalt, Base64.URL_SAFE));
+        super.createTxtFileInFolder(encryptedName, folderIdStr, cipherData, callbackInstance);
     }
 
     @Override
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
-                                          final ListFolderByIDCallback callbackInstance, final Map<String, String> metaInfo){
+                                     final Map<String, String> metaInfo, final ListFolderByIDCallback callbackInstance){
         Map<String, String> cipherData = encryptAssetName(name);
         String encryptedName = cipherData.remove(SecureProperties.ASSET_NAME.toString());
         cipherData.put(SecureProperties.SALT.toString(), Base64.encodeToString(mSalt, Base64.URL_SAFE));
-        super.createFolderInFolder(encryptedName, folderIdStr, gotoFolder, callbackInstance, cipherData);
+        super.createFolderInFolder(encryptedName, folderIdStr, gotoFolder, cipherData, callbackInstance);
     }
 
     @Override
-    protected void initAppRoot(ListFolderByIDCallback callbackInstance){
+    protected void initAppRoot(final ListFolderByIDCallback callbackInstance){
         final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
         String name = mParentActivity.getString(R.string.app_name);
-        super.createFolderInFolder(name, driveRoot, true, callbackInstance, null);
+        super.createFolderInFolder(name, driveRoot, true, null, new ListFolderByIDCallback(){
+            @Override
+            public void callback(FolderInfo info) {
+                // setup master key
+                if (info.items.length!=0){
+                    // TODO: ask to enter password.
+                    // found encrypted items, use it to validate password
+                    Metadata item = info.items[0];
+                    Map<CustomPropertyKey, String> properties = item.getCustomProperties();
+                    Map<String, String> encryptInfo = new HashMap<>();
+                    for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
+                        String key = entry.getKey().getKey();
+                        String value = entry.getValue();
+                        encryptInfo.put(key, value);
+                    }
+                    String clearTitle = decryptAssetName(item.getTitle(), encryptInfo);
+                    if (clearTitle!=null){
+                        // success?
+                        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validated.");
+                    }else{
+                        // try again
+                        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "password incorrect, try again.");
+                    }
+                }else{
+                    // TODO:  Ask for new password.
+                    // no item found.  generate salt and create a validation file
+                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Generating password validation file.");
+                    generateSalt();
+                    convertPassToKey(mPasswordString);
+                    createTxtFileInFolder("passwordValidationFile", info.folder.getDriveId().encodeToString(),
+                            new ListFolderByIDCallback() {
+                                @Override
+                                public void callback(FolderInfo info) {
+                                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validation file generated.");
+                                }
+                            });
+                }
+                callbackInstance.callback(info);
+            }
+        });
     }
 
     @Override
@@ -478,7 +508,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
             // salt changed, regenerate master key encryption key
             JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "master key encryption key salt changed!");
             mSalt = Base64.decode(saltStr, Base64.URL_SAFE);
-            convertPassToKey("password");
+            convertPassToKey(mPasswordString);
         }else {
             JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "same salt!");
         }

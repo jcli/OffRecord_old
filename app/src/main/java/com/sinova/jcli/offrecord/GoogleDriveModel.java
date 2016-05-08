@@ -56,6 +56,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         public DriveFolder parentFolder;
         public DriveFolder folder;
         public Metadata items[];
+        public String itemReadableTitles[];
     }
 
     /////////////// constructor ////////////////////
@@ -135,8 +136,10 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                                 MetadataBuffer buffer = result.getMetadataBuffer();
                                 if (buffer.getCount()>0){
                                     currentFolder.items = new Metadata[buffer.getCount()];
+                                    currentFolder.itemReadableTitles = new String[buffer.getCount()];
                                     for (int i=0; i<buffer.getCount(); i++){
                                         currentFolder.items[i]=buffer.get(i).freeze();
+                                        currentFolder.itemReadableTitles[i]=currentFolder.items[i].getTitle();
                                     }
                                     // sort items
                                     Arrays.sort(currentFolder.items, new Comparator<Metadata>() {
@@ -184,7 +187,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     }
 
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
-                                     final ListFolderByIDCallback callbackInstance, final Map<String, String> metaInfo){
+                                     final Map<String, String> metaInfo, final ListFolderByIDCallback callbackInstance){
         // TODO: can not re-entry
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
@@ -241,10 +244,12 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     }
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
                                      final ListFolderByIDCallback callbackInstance){
-        createFolderInFolder(name, folderIdStr, gotoFolder, callbackInstance, null);
+        createFolderInFolder(name, folderIdStr, gotoFolder, null, callbackInstance);
     }
 
-    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
+
+    public void createTxtFileInFolder(final String fileName, final String folderIdStr,
+                                      final Map<String, String> metaInfo, final ListFolderByIDCallback callbackInstance){
         // TODO: can not re-entry
         // check for naming conflict
         listFolderByID(folderIdStr, new ListFolderByIDCallback() {
@@ -259,9 +264,17 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                     }
                 }
                 // no conflict if it gets to here
-                MetadataChangeSet changeSet = new MetadataChangeSet.Builder()
-                        .setTitle(fileName)
-                        .setMimeType("text/plain").build();
+                MetadataChangeSet.Builder builder = new MetadataChangeSet.Builder();
+                builder.setTitle(fileName);
+                builder.setMimeType("text/plain");
+                if (metaInfo!=null){
+                    for (Map.Entry<String, String> entry : metaInfo.entrySet()){
+                        CustomPropertyKey propertyKey = new CustomPropertyKey(entry.getKey(), CustomPropertyKey.PUBLIC);
+                        builder.setCustomProperty(propertyKey, entry.getValue());
+                    }
+                }
+                MetadataChangeSet changeSet = builder.build();
+
                 DriveId.decodeFromString(folderIdStr).asDriveFolder()
                         .createFile(mGoogleApiClient, changeSet, null)
                         .setResultCallback(new ResultCallback<DriveFolder.DriveFileResult>() {
@@ -280,6 +293,9 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
                         });
             }
         });
+    }
+    public void createTxtFileInFolder(final String fileName, final String folderIdStr, final ListFolderByIDCallback callbackInstance){
+        createTxtFileInFolder(fileName, folderIdStr, null, callbackInstance);
     }
 
     protected void initAppRoot(ListFolderByIDCallback callbackInstance){
