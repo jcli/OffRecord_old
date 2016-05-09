@@ -55,10 +55,6 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private SecureRandom secureRandom;
     private String theTestText = "This is a test string...";
 
-    public class FolderInfoSecure extends FolderInfo{
-        public String itemNamesPlainText[];
-    }
-
     private enum SecureProperties {
         ENCRYPTION_KEY("encryption_key"),
         ENCRYPTION_KEY_IV("encryption_key_iv"),
@@ -87,10 +83,10 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                 DriveId fileID=null;
                 Metadata fileMetaData=null;
                 for (int i=0; i<info.items.length; i++) {
-                    if (info.items[i].getTitle().equals(mParentActivity.getString(R.string.password_validation_file))) {
-                        fileID = info.items[i].getDriveId();
-                        fileMetaData = info.items[i];
-                        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "validation file: "+info.items[i].getTitle());
+                    if (info.items[i].meta.getTitle().equals(mParentActivity.getString(R.string.password_validation_file))) {
+                        fileID = info.items[i].meta.getDriveId();
+                        fileMetaData = info.items[i].meta;
+                        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "validation file: "+info.items[i].meta.getTitle());
                         break;
                     }
                 }
@@ -216,8 +212,8 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                                 public void callback(FolderInfo info) {
                                     String fileID=null;
                                     for(int i=0; i< info.items.length; i++) {
-                                        if (info.items[i].getTitle().equals(mParentActivity.getString(R.string.password_validation_file))) {
-                                            fileID = info.items[i].getDriveId().encodeToString();
+                                        if (info.items[i].meta.getTitle().equals(mParentActivity.getString(R.string.password_validation_file))) {
+                                            fileID = info.items[i].meta.getDriveId().encodeToString();
                                             break;
                                         }
                                     }
@@ -245,15 +241,35 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
 
     ////////////////////// override public methods ////////////
 
-//    @Override
-//    public void listFolderByID (String folderIDStr, final ListFolderByIDCallback callbackInstance){
-//        super.listFolderByID(folderIDStr, new ListFolderByIDCallback() {
-//            @Override
-//            public void callback(FolderInfo info) {
-//
-//            }
-//        });
-//    }
+    @Override
+    public void listFolderByID (String folderIDStr, final ListFolderByIDCallback callbackInstance){
+        super.listFolderByID(folderIDStr, new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                if (info.items!=null){
+                    for (ItemInfo item : info.items) {
+                        Map<CustomPropertyKey, String> properties = item.meta.getCustomProperties();
+                        String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey(SecureProperties.ENCRYPTION_KEY.toString(), CustomPropertyKey.PUBLIC));
+                        if (encryptedEncryptionKey == null) {
+                            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "asset name is not encrypted.");
+                        } else {
+                            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "asset name is encrypted.");
+                            // decrypt drive asset name
+                            Map<String, String> encryptInfo = new HashMap<>();
+                            for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
+                                String key = entry.getKey().getKey();
+                                String value = entry.getValue();
+                                encryptInfo.put(key, value);
+                            }
+                            String clearTitle = decryptAssetName(item.meta.getTitle(), encryptInfo);
+                            item.readableTitle = clearTitle;
+                        }
+                    }
+                }
+                callbackInstance.callback(info);
+            }
+        });
+    }
 
     @Override
     public void createTxtFileInFolder(final String fileName, final String folderIdStr,
@@ -284,7 +300,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                 if (info.items.length!=0){
                     // TODO: ask to enter password.
                     // found encrypted items, use it to validate password
-                    Metadata item = info.items[0];
+                    Metadata item = info.items[0].meta;
                     Map<CustomPropertyKey, String> properties = item.getCustomProperties();
                     Map<String, String> encryptInfo = new HashMap<>();
                     for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {

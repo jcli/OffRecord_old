@@ -2,6 +2,7 @@ package com.sinova.jcli.offrecord;
 
 import android.animation.ObjectAnimator;
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Point;
@@ -11,6 +12,7 @@ import android.os.Bundle;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
+import android.support.v7.view.menu.MenuBuilder;
 import android.text.InputType;
 import android.view.Display;
 import android.view.LayoutInflater;
@@ -26,7 +28,6 @@ import android.widget.TextView;
 import com.getbase.floatingactionbutton.FloatingActionButton;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
-import com.google.android.gms.drive.Metadata;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -61,7 +62,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
         return false;
     }
 
-    private class MetadataArrayAdapter extends ArrayAdapter<Metadata>{
+    private class MetadataArrayAdapter extends ArrayAdapter<GoogleDriveModel.ItemInfo>{
 
         private int mResource;
         private Context mContext;
@@ -85,9 +86,9 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
             View row=inflater.inflate(mResource,parent,false);
             TextView title = (TextView)row.findViewById(R.id.list_item_drive_asset_title);
             TextView type = (TextView) row.findViewById(R.id.list_item_drive_asset_type);
-            Metadata data = (Metadata)getItem(position);
-            title.setText(data.getTitle());
-            if (data.isFolder()){
+            GoogleDriveModel.ItemInfo data = (GoogleDriveModel.ItemInfo) getItem(position);
+            title.setText(data.readableTitle);
+            if (data.meta.isFolder()){
                 type.setText("Folder");
             }else{
                 type.setText("Text File");
@@ -300,12 +301,12 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     private void itemAction(AdapterView<?> parent, View view, int position, long id){
-        Metadata item = (Metadata)(parent.getAdapter().getItem(position));
-        if (item.isFolder()){
-            mMainActivity.mGDriveModel.listFolderByID(item.getDriveId().encodeToString(), listFolderByIDCallback);
+        GoogleDriveModel.ItemInfo item = (GoogleDriveModel.ItemInfo)(parent.getAdapter().getItem(position));
+        if (item.meta.isFolder()){
+            mMainActivity.mGDriveModel.listFolderByID(item.meta.getDriveId().encodeToString(), listFolderByIDCallback);
         }else{
             // open file
-            final String assetID = item.getDriveId().encodeToString();
+            final String assetID = item.meta.getDriveId().encodeToString();
             mMainActivity.mGDriveModel.readTxtFile(assetID, new GoogleDriveModel.ReadTxtFileCallback() {
                 @Override
                 public void callback(String fileContent) {
@@ -318,14 +319,14 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     private void itemSelection(AdapterView<?> parent, View view, int position, long id){
-        Metadata item = (Metadata)(parent.getAdapter().getItem(position));
+        GoogleDriveModel.ItemInfo item = (GoogleDriveModel.ItemInfo)(parent.getAdapter().getItem(position));
         if (mCurrentSelections.containsKey(position)
-                && mCurrentSelections.get(position).equals(item.getDriveId().encodeToString())){
+                && mCurrentSelections.get(position).equals(item.meta.getDriveId().encodeToString())){
                 //clear selection
                 mCurrentSelections.remove(position);
             view.setBackgroundColor(ContextCompat.getColor(mMainActivity, R.color.white));
         }else {
-            mCurrentSelections.put(position, item.getDriveId().encodeToString());
+            mCurrentSelections.put(position, item.meta.getDriveId().encodeToString());
             view.setBackgroundColor(ContextCompat.getColor(mMainActivity, R.color.pink));
         }
     }
