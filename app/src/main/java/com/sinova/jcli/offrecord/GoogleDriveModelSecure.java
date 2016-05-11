@@ -158,7 +158,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                             } catch (UnsupportedEncodingException e) {
                                 e.printStackTrace();
                             }
-                            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decoded message: " + plainrStr);
+//                            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decoded message: " + plainrStr);
                             // delete for now:
                             driveFile.delete(mGoogleApiClient).setResultCallback(new ResultCallback<Status>() {
                                 @Override
@@ -433,10 +433,10 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         values.put(SecureProperties.CIPHER_TEXT.toString(), encryptedText);
         values.put(SecureProperties.CIPHER_TEXT_IV.toString(), ivString);
 
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted text: "+ encryptedText);
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted text iv: "+ ivString);
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted text: "+ encryptedText);
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted text iv: "+ ivString);
         byte[] plainText= decryptStringToData(encryptedText, key, Base64.decode(ivString, Base64.URL_SAFE));
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "plaintext: " + Base64.encodeToString(plainText, Base64.URL_SAFE));
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "plaintext: " + Base64.encodeToString(plainText, Base64.URL_SAFE));
 
         // test decryption
         return  values;
@@ -472,14 +472,14 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         assetInfo.put(SecureProperties.SALT.toString(), Base64.encodeToString(mSalt, Base64.URL_SAFE));
 
         // test decryption
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted key : " + assetInfo.get(SecureProperties.ENCRYPTION_KEY.toString()));
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted key iv : " + assetInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()));
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted key : " + assetInfo.get(SecureProperties.ENCRYPTION_KEY.toString()));
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encrypted key iv : " + assetInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()));
 
         byte[] keyIV = Base64.decode(assetInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()), Base64.URL_SAFE);
         byte[] encryptionKeyBytes = decryptStringToData(assetInfo.get(SecureProperties.ENCRYPTION_KEY.toString()), mKeyEncryptionKey, keyIV);
         SecretKey encryptionKey = new SecretKeySpec(encryptionKeyBytes, "AES");
 
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decrypted encryption key: " + Base64.encodeToString(encryptionKey.getEncoded(), Base64.URL_SAFE));
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decrypted encryption key: " + Base64.encodeToString(encryptionKey.getEncoded(), Base64.URL_SAFE));
         return assetInfo;
     }
 
@@ -530,15 +530,15 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         }
         // decrypt the encryption key using master key
         byte[] keyIV = Base64.decode(encryptInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()), Base64.URL_SAFE);
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encryption key : " + encryptInfo.get(SecureProperties.ENCRYPTION_KEY.toString()));
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encryption key iv: " + encryptInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()));
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encryption key : " + encryptInfo.get(SecureProperties.ENCRYPTION_KEY.toString()));
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "encryption key iv: " + encryptInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()));
         byte[] encryptionKeyBytes = decryptStringToData(encryptInfo.get(SecureProperties.ENCRYPTION_KEY.toString()), mKeyEncryptionKey, keyIV);
         SecretKey encryptionKey = new SecretKeySpec(encryptionKeyBytes, "AES");
 
         // decrypt the name
         byte[] assetNameIV=Base64.decode(encryptInfo.get(SecureProperties.ASSET_NAME_IV.toString()), Base64.URL_SAFE);
         String assetName = decryptStringToString(encryptedName, encryptionKey, assetNameIV);
-        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decrypted asset name: " + assetName);
+//        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "decrypted asset name: " + assetName);
         return assetName;
     }
 }

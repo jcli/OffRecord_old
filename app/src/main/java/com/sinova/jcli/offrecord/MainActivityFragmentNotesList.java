@@ -109,6 +109,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
         JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.UI, "onCreate called");
         if (savedInstanceState!=null){
             mRestoredFolderIDStr = savedInstanceState.getString("currentFolder");
+            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "restore Notes List instance state");
         }else{
             mRestoredFolderIDStr=null;
         }
@@ -140,7 +141,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
         // try to populate the list
         if (mMainActivity.mGDriveModel.isConnected()){
-//            showInitialList();
+            showInitialList();
         }
 
         mFragmentView=rootView;
@@ -182,8 +183,10 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
     @Override
     public void onSaveInstanceState(Bundle state) {
+        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "saving Notes List instance state called...");
         super.onSaveInstanceState(state);
         if (mCurrentFolder!=null) {
+            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "saving Notes List instance state");
             state.putString("currentFolder", mCurrentFolder.folder.getDriveId().encodeToString());
         }
     }
