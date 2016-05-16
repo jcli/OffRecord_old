@@ -297,18 +297,29 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
             @Override
             public void callback(FolderInfo info) {
                 // setup master key
-                if (info.items.length!=0){
+                Metadata encryptedItem=null;
+                if (info.items.length!=0) {
+                    for (ItemInfo item : info.items) {
+                        Map<CustomPropertyKey, String> properties = item.meta.getCustomProperties();
+                        String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey(SecureProperties.ENCRYPTION_KEY.toString(), CustomPropertyKey.PUBLIC));
+                        if (encryptedEncryptionKey != null) {
+                            // found encrypted item
+                            encryptedItem = item.meta;
+                            break;
+                        }
+                    }
+                }
+                if (encryptedItem!=null){
                     // TODO: ask to enter password.
                     // found encrypted items, use it to validate password
-                    Metadata item = info.items[0].meta;
-                    Map<CustomPropertyKey, String> properties = item.getCustomProperties();
+                    Map<CustomPropertyKey, String> properties = encryptedItem.getCustomProperties();
                     Map<String, String> encryptInfo = new HashMap<>();
                     for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
                         String key = entry.getKey().getKey();
                         String value = entry.getValue();
                         encryptInfo.put(key, value);
                     }
-                    String clearTitle = decryptAssetName(item.getTitle(), encryptInfo);
+                    String clearTitle = decryptAssetName(encryptedItem.getTitle(), encryptInfo);
                     if (clearTitle!=null){
                         // success?
                         JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validated.");
