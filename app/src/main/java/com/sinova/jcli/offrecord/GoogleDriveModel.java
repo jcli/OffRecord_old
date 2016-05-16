@@ -173,24 +173,6 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         });
     }
 
-//    public void searchAssetInFolderByNameType(String folderIDStr, final String assetName, final boolean isFolder, final ListFolderByIDCallback callbackInstance){
-//        listFolderByID(folderIDStr, new ListFolderByIDCallback() {
-//            @Override
-//            public void callback(FolderInfo info) {
-//                ArrayList<Metadata> matchedItems = new ArrayList<Metadata>();
-//                for (Metadata item: info.items){
-//                    if (nameCompare(assetName, item, null) && item.isFolder()==isFolder){
-//                        matchedItems.add(item.freeze());
-//                    }
-//                }
-//                info.items = new Metadata[matchedItems.size()];
-//                matchedItems.toArray(info.items);
-//                callbackInstance.callback(info);
-//            }
-//        });
-//    }
-//
-
     public void createFolderInFolder(final String name, final String folderIdStr, final boolean gotoFolder,
                                      final Map<String, String> metaInfo, final ListFolderByIDCallback callbackInstance){
         // TODO: can not re-entry
@@ -318,7 +300,8 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     public interface ReadTxtFileCallback {
         void callback(String fileContent);
     }
-    public void readTxtFile(final String assetID, final ReadTxtFileCallback callbackInstance){
+    public void readTxtFile(final ItemInfo assetInfo, final ReadTxtFileCallback callbackInstance){
+        String assetID = assetInfo.meta.getDriveId().encodeToString();
         final DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
         file.open(mGoogleApiClient, DriveFile.MODE_READ_ONLY, null)
                 .setResultCallback(new ResultCallback<DriveContentsResult>() {
@@ -353,10 +336,11 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     public interface WriteTxtFileCallback {
         void callback(boolean success);
     }
-    public void writeTxtFile(final String assetID, final String contentStr, final WriteTxtFileCallback callbackInstance){
-        writeTxtFile(assetID, contentStr, callbackInstance, null);
+    public void writeTxtFile(final ItemInfo assetInfo, final String contentStr, final WriteTxtFileCallback callbackInstance){
+        writeTxtFile(assetInfo, contentStr, callbackInstance, null);
     }
-    public void writeTxtFile(final String assetID, final String contentStr, final WriteTxtFileCallback callbackInstance, final Map<String, String> metaInfo){
+    public void writeTxtFile(final ItemInfo assetInfo, final String contentStr, final WriteTxtFileCallback callbackInstance, final Map<String, String> metaInfo){
+        String assetID = assetInfo.meta.getDriveId().encodeToString();
         DriveFile file = DriveId.decodeFromString(assetID).asDriveFile();
         file.open(mGoogleApiClient, DriveFile.MODE_WRITE_ONLY, null).setResultCallback(new ResultCallback<DriveContentsResult>() {
             @Override

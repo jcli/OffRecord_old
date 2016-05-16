@@ -304,18 +304,17 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     private void itemAction(AdapterView<?> parent, View view, int position, long id){
-        GoogleDriveModel.ItemInfo item = (GoogleDriveModel.ItemInfo)(parent.getAdapter().getItem(position));
+        final GoogleDriveModel.ItemInfo item = (GoogleDriveModel.ItemInfo)(parent.getAdapter().getItem(position));
         if (item.meta.isFolder()){
             mMainActivity.mGDriveModel.listFolderByID(item.meta.getDriveId().encodeToString(), listFolderByIDCallback);
         }else{
             // open file
-            final String assetID = item.meta.getDriveId().encodeToString();
-            mMainActivity.mGDriveModel.readTxtFile(assetID, new GoogleDriveModel.ReadTxtFileCallback() {
+            mMainActivity.mGDriveModel.readTxtFile(item, new GoogleDriveModel.ReadTxtFileCallback() {
                 @Override
                 public void callback(String fileContent) {
                     // launch the edit fragment
                     FragmentTransaction transaction = getParentFragment().getChildFragmentManager().beginTransaction();
-                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(assetID, fileContent)).addToBackStack(null).commit();
+                    transaction.replace(R.id.notes_child_fragment, new MainActivityFragmentNotesEdit(item, fileContent)).addToBackStack(null).commit();
                 }
             });
         }
@@ -407,7 +406,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     private GoogleDriveModel.ListFolderByIDCallback listFolderByIDCallback = new GoogleDriveModel.ListFolderByIDCallback() {
         @Override
         public void callback(GoogleDriveModel.FolderInfo info) {
-            if (info!=null) {
+            if (info != null) {
                 mCurrentFolder = info;
                 mDriveAssetArrayAdapter.clear();
                 mDriveAssetArrayAdapter.addAll(info.items);

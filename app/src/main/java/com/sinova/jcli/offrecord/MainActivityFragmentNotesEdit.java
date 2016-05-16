@@ -1,7 +1,6 @@
 package com.sinova.jcli.offrecord;
 
 import android.os.Bundle;
-import android.provider.Contacts;
 import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,16 +13,16 @@ import android.widget.TextView;
  */
 public class MainActivityFragmentNotesEdit extends Fragment implements FragmentBackStackPressed{
     String mContent="";
-    String mAssetID;
+    GoogleDriveModel.ItemInfo mAssetInfo;
 
     EditText mEditView;
 
     public MainActivityFragmentNotesEdit() {
     }
 
-    public MainActivityFragmentNotesEdit(String assetID, String contentStr) {
+    public MainActivityFragmentNotesEdit(GoogleDriveModel.ItemInfo assetInfo, String contentStr) {
         mContent = contentStr;
-        mAssetID = assetID;
+        mAssetInfo = assetInfo;
     }
 
     @Override
@@ -31,7 +30,7 @@ public class MainActivityFragmentNotesEdit extends Fragment implements FragmentB
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
         if (savedInstanceState!=null){
-            mAssetID=savedInstanceState.getString("mAssetID");
+            String assetID =savedInstanceState.getString("assetID");
             mContent=savedInstanceState.getString("mContent");
         }
     }
@@ -47,13 +46,13 @@ public class MainActivityFragmentNotesEdit extends Fragment implements FragmentB
 
     public void commitContent(){
         mContent = mEditView.getText().toString();
-        ((MainActivity)getActivity()).mGDriveModel.writeTxtFile(mAssetID, mContent, new GoogleDriveModel.WriteTxtFileCallback() {
+        ((MainActivity)getActivity()).mGDriveModel.writeTxtFile(mAssetInfo, mContent, new GoogleDriveModel.WriteTxtFileCallback() {
             @Override
             public void callback(boolean success) {
                 if (success){
-                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "file write successful: "+mAssetID);
+                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "file write successful: "+ mAssetInfo);
                 }else{
-                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "file write failed: "+mAssetID);
+                    JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "file write failed: "+ mAssetInfo);
                 }
             }
         });
@@ -67,7 +66,7 @@ public class MainActivityFragmentNotesEdit extends Fragment implements FragmentB
 
     public void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
-        state.putString("mAssetID", mAssetID);
+        state.putString("assetID", mAssetInfo.meta.getDriveId().encodeToString());
         state.putString("mContent", mContent);
     }
 
