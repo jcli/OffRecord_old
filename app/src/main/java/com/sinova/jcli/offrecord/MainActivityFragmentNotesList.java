@@ -372,8 +372,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
 
     private void showInitialList(){
         if (mCurrentFolder!=null) {
-            mDriveAssetArrayAdapter.clear();
-            mDriveAssetArrayAdapter.addAll(mCurrentFolder.items);
+            mMainActivity.mGDriveModel.listFolderByID(mCurrentFolder.folder.getDriveId().encodeToString(), listFolderByIDCallback);
         }else if (mRestoredFolderIDStr!=null){
             mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
             mMainActivity.mGDriveModel.initSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
