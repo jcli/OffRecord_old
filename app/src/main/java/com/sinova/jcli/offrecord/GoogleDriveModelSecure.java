@@ -43,7 +43,6 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private final int KEYLENGTH = 256;
     private SecretKey mKeyEncryptionKey=null;  // must never be stored, and should be cleared on timeout.
     private String mPasswordString = "password"; // must never be stored, and should be cleared on timeout.
-
     private byte[] mSalt;               // should be the same for every asset
     private SecureRandom secureRandom;
 

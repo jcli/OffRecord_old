@@ -52,6 +52,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     public static final int REQUEST_CODE_RESOLUTION = 3;
     protected Activity mParentActivity = null;
     protected DriveFolder mAppRootFolder;
+    protected boolean mConnected=false;
 
     public class ItemInfo {
         public Metadata meta;
@@ -82,6 +83,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
 
     public void close(){
         mGoogleApiClient.disconnect();
+        mConnected=false;
         JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "GoogleApiClient disconnected.");
     }
 
@@ -117,6 +119,12 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
 
     public interface ListFolderByIDCallback {
         void callback(FolderInfo info);
+    }
+    public class ListFolderByIDCallbackNull implements ListFolderByIDCallback{
+        @Override
+        public void callback(FolderInfo info) {
+            // do nothing
+        }
     }
     public void listFolderByID (String folderIDStr, final ListFolderByIDCallback callbackInstance) {
         final FolderInfo currentFolder = new FolderInfo();
@@ -285,11 +293,23 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
         createTxtFileInFolder(fileName, folderIdStr, null, callbackInstance);
     }
 
-    protected void initAppRoot(ListFolderByIDCallback callbackInstance){
+    protected void initAppRoot(final ListFolderByIDCallback callbackInstance){
         final String driveRoot = Drive.DriveApi.getRootFolder(mGoogleApiClient).getDriveId().encodeToString();
         String name = mParentActivity.getString(R.string.app_name);
-        createFolderInFolder(name, driveRoot, true, callbackInstance);
+        createFolderInFolder(name, driveRoot, true, new ListFolderByIDCallback() {
+            @Override
+            public void callback(FolderInfo info) {
+                mAppRootFolder = info.folder;
+                setChanged();
+                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+                notifyObservers();
+                clearChanged();
+                mConnected=true;
+                callbackInstance.callback(info);
+            }
+        });
     }
+
     protected void initSectionRoot(String sectionRoot, ListFolderByIDCallback callbackInstance){
         // mAppRootFolder can not be null.
         if (mAppRootFolder !=null) {
@@ -444,20 +464,7 @@ public class GoogleDriveModel extends Observable implements GoogleApiClient.Conn
     @Override
     public void onConnected(Bundle bundle) {
         //TODO: need to better notify connection
-        initAppRoot(new ListFolderByIDCallback() {
-            @Override
-            public void callback(FolderInfo info) {
-                if (info!=null){
-                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "app root initialized");
-                    mAppRootFolder = info.folder;
-                }
-                JCLog.log(JCLog.LogLevel.VERBOSE, JCLog.LogAreas.GOOGLEAPI, "Google Drive Connected.");
-                setChanged();
-                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
-                notifyObservers();
-                clearChanged();
-            }
-        });
+        initAppRoot(new ListFolderByIDCallbackNull());
     }
 
     @Override
