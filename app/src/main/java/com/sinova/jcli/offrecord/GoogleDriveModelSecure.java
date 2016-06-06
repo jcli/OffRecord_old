@@ -1,7 +1,13 @@
 package com.sinova.jcli.offrecord;
 
 import android.app.Activity;
+import android.content.DialogInterface;
+import android.media.MediaActionSound;
+import android.support.v7.app.AlertDialog;
+import android.text.InputType;
 import android.util.Base64;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 
 import com.google.android.gms.drive.Drive;
 import com.google.android.gms.drive.Metadata;
@@ -42,7 +48,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private final int ITERATIONS = 10000;
     private final int KEYLENGTH = 256;
     private SecretKey mKeyEncryptionKey=null;  // must never be stored, and should be cleared on timeout.
-    private String mPasswordString = "password"; // must never be stored, and should be cleared on timeout.
+    private String mPasswordString=null; // must never be stored, and should be cleared on timeout.
     private byte[] mSalt;               // should be the same for every asset
     private SecureRandom secureRandom;
 
@@ -72,7 +78,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         super.listFolderByID(folderIDStr, new ListFolderByIDCallback() {
             @Override
             public void callback(FolderInfo info) {
-                if (info.items!=null){
+                if (info.items!=null && mPasswordString!=null){
                     for (ItemInfo item : info.items) {
                         Map<CustomPropertyKey, String> properties = item.meta.getCustomProperties();
                         String encryptedEncryptionKey = (String) properties.get(new CustomPropertyKey(SecureProperties.ENCRYPTION_KEY.toString(), CustomPropertyKey.PUBLIC));
@@ -167,6 +173,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         super.createFolderInFolder(name, driveRoot, true, null, new ListFolderByIDCallback(){
             @Override
             public void callback(FolderInfo info) {
+                // init mAppRootFolder
+                mAppRootFolder = info.folder;
+
                 // setup master key
                 Metadata encryptedItem=null;
                 if (info.items.length!=0) {
@@ -181,25 +190,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                     }
                 }
                 if (encryptedItem!=null){
-                    // TODO: ask to enter password.
-                    // found encrypted items, use it to validate password
-                    Map<CustomPropertyKey, String> properties = encryptedItem.getCustomProperties();
-                    Map<String, String> encryptInfo = new HashMap<>();
-                    for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
-                        String key = entry.getKey().getKey();
-                        String value = entry.getValue();
-                        encryptInfo.put(key, value);
-                    }
-                    String clearTitle = decryptAssetString(encryptedItem.getTitle(), encryptInfo.get(SecureProperties.ASSET_NAME_IV.toString()), encryptInfo);
-                    if (clearTitle!=null){
-                        // success?
-                        JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validated.");
-                    }else{
-                        // try again
-                        JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "password incorrect, try again.");
-                    }
+                    passwordPrompt(encryptedItem);
                 }else{
-                    // TODO:  Ask for new password.
+                    newPasswordPrompt();
                     // no item found.  generate salt and create a validation file
                     JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Generating password validation file.");
                     generateSalt();
@@ -243,6 +236,72 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     }
 
     //////////////////////// private helper /////////////////////
+
+    // password prompt
+    private void passwordPrompt(final Metadata validationFile){
+        AlertDialog.Builder builder = new AlertDialog.Builder(mParentActivity);
+        builder.setTitle("Enter Password");
+        final EditText password = new EditText(mParentActivity);
+        password.setInputType(InputType.TYPE_CLASS_TEXT);
+        builder.setView(password);
+
+        // Set up the buttons
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "OK clicked...");
+                String localPassword = password.getText().toString();
+                mPasswordString=localPassword;
+                mKeyEncryptionKey=null;
+                mSalt=null;
+
+                // validate the password
+                passwordValidation(validationFile);
+
+                setChanged();
+                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+                notifyObservers();
+                clearChanged();
+                mConnected=true;
+
+            }
+        });
+        builder.show();
+    }
+
+    // validate password
+    private void passwordValidation(Metadata validationFile){
+        Map<CustomPropertyKey, String> properties = validationFile.getCustomProperties();
+        Map<String, String> encryptInfo = new HashMap<>();
+        for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
+            String key = entry.getKey().getKey();
+            String value = entry.getValue();
+            encryptInfo.put(key, value);
+        }
+        String clearTitle = decryptAssetString(validationFile.getTitle(), encryptInfo.get(SecureProperties.ASSET_NAME_IV.toString()), encryptInfo);
+        if (clearTitle!=null){
+            // success?
+            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validated.");
+        }else{
+            // try again
+            JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "password incorrect, try again.");
+        }
+    }
+
+    // new password prompt
+    private void newPasswordPrompt(){
+        LinearLayout passLayout = new LinearLayout(mParentActivity);
+        passLayout.setOrientation(LinearLayout.VERTICAL);
+        EditText password = new EditText(mParentActivity);
+        password.setHint("new password");
+        passLayout.addView(password);
+        EditText passwordAgain = new EditText(mParentActivity);
+        passwordAgain.setHint("password again");
+        passLayout.addView(passwordAgain);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(mParentActivity);
+        builder.setTitle("New Password");
+    }
 
     // for the master key encryption key
     private void generateSalt(){

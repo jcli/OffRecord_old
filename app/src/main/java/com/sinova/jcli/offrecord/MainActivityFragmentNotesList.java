@@ -371,9 +371,12 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
     }
 
     private void showInitialList(){
+        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Showing initial list...");
         if (mCurrentFolder!=null) {
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Showing current folder...");
             mMainActivity.mGDriveModel.listFolderByID(mCurrentFolder.folder.getDriveId().encodeToString(), listFolderByIDCallback);
         }else if (mRestoredFolderIDStr!=null){
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Showing restored folder...");
             mMainActivity.mGDriveModel.listFolderByID(mRestoredFolderIDStr, listFolderByIDCallback);
             mMainActivity.mGDriveModel.initSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
                     new GoogleDriveModel.ListFolderByIDCallback() {
@@ -385,6 +388,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                         }
                     });
         }else{
+            JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "Showing section root...");
             mMainActivity.mGDriveModel.initSectionRoot(MainActivityFragmentNotes.SECTION_NAME,
                     new GoogleDriveModel.ListFolderByIDCallback() {
                         @Override
@@ -394,6 +398,7 @@ public class MainActivityFragmentNotesList extends Fragment implements Observer,
                                 mDriveAssetArrayAdapter.clear();
                                 mDriveAssetArrayAdapter.addAll(info.items);
                                 mSectionRootIDStr=info.folder.getDriveId().encodeToString();
+                                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.UI, "section root loaded...");
                             }
                         }
                     });
