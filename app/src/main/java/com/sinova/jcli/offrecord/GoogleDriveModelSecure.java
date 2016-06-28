@@ -120,7 +120,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                 Map<CustomPropertyKey, String> properties = assetInfo.meta.getCustomProperties();
                 String cipherIV = (String) properties.get(new CustomPropertyKey(SecureProperties.CIPHER_TEXT_IV.toString(), CustomPropertyKey.PUBLIC));
                 if (cipherIV == null || fileContent.length()==0) {
-                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "content is not encrypted or zero length.");
+                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "content is not encrypted or zero length." + fileContent);
                     callbackInstance.callback(fileContent);
                 }else{
                     JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "content is encrypted.");
@@ -129,6 +129,7 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                         String key = entry.getKey().getKey();
                         String value = entry.getValue();
                         encryptInfo.put(key, value);
+                        JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "key: "+key+" value: "+value);
                     }
                     String clearFileContent = decryptAssetString(fileContent, encryptInfo.get(SecureProperties.CIPHER_TEXT_IV.toString()), encryptInfo);
                     callbackInstance.callback(clearFileContent);
@@ -146,10 +147,12 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
             super.writeTxtFile(assetInfo, contentStr, callbackInstance, null);
         } else {
             // encrypt the content first
+            JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "encrypting content: " + contentStr);
             Map<String, String> encryptInfo = new HashMap<>();
             for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
                 String key = entry.getKey().getKey();
                 String value = entry.getValue();
+                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "key: "+key+" value: "+value);
                 encryptInfo.put(key, value);
             }
             String encryptedFileContent = encryptAssetString(contentStr, encryptInfo);
@@ -193,17 +196,6 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                     passwordPrompt(encryptedItem);
                 }else{
                     newPasswordPrompt();
-                    // no item found.  generate salt and create a validation file
-                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Generating password validation file.");
-                    generateSalt();
-                    convertPassToKey(mPasswordString);
-                    createTxtFileInFolder("passwordValidationFile", info.folder.getDriveId().encodeToString(),
-                            new ListFolderByIDCallback() {
-                                @Override
-                                public void callback(FolderInfo info) {
-                                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validation file generated.");
-                                }
-                            });
                 }
                 callbackInstance.callback(info);
             }
@@ -256,21 +248,22 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
                 mSalt=null;
 
                 // validate the password
-                passwordValidation(validationFile);
-
-                setChanged();
-                JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
-                notifyObservers();
-                clearChanged();
-                mConnected=true;
-
+                if (passwordValidation(validationFile)) {
+                    setChanged();
+                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+                    notifyObservers();
+                    clearChanged();
+                    mConnected = true;
+                }else {
+                    passwordPrompt(validationFile);
+                }
             }
         });
         builder.show();
     }
 
     // validate password
-    private void passwordValidation(Metadata validationFile){
+    private boolean passwordValidation(Metadata validationFile){
         Map<CustomPropertyKey, String> properties = validationFile.getCustomProperties();
         Map<String, String> encryptInfo = new HashMap<>();
         for (Map.Entry<CustomPropertyKey, String> entry : properties.entrySet()) {
@@ -282,9 +275,11 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         if (clearTitle!=null){
             // success?
             JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validated.");
+            return true;
         }else{
             // try again
             JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "password incorrect, try again.");
+            return false;
         }
     }
 
@@ -292,15 +287,50 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
     private void newPasswordPrompt(){
         LinearLayout passLayout = new LinearLayout(mParentActivity);
         passLayout.setOrientation(LinearLayout.VERTICAL);
-        EditText password = new EditText(mParentActivity);
+        final EditText password = new EditText(mParentActivity);
         password.setHint("new password");
         passLayout.addView(password);
-        EditText passwordAgain = new EditText(mParentActivity);
+        final EditText passwordAgain = new EditText(mParentActivity);
         passwordAgain.setHint("password again");
         passLayout.addView(passwordAgain);
 
         AlertDialog.Builder builder = new AlertDialog.Builder(mParentActivity);
         builder.setTitle("New Password");
+        builder.setView(passLayout);
+
+        // Set up the buttons
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                JCLog.log(JCLog.LogLevel.ERROR, JCLog.LogAreas.GOOGLEAPI, "OK clicked...");
+                // check if password match each other
+                if (!password.getText().toString().equals(passwordAgain.getText().toString())){
+                    newPasswordPrompt();
+                }else{
+                    mPasswordString=password.getText().toString();
+                    mKeyEncryptionKey=null;
+                    mSalt=null;
+                    // generate salt and create a validation file
+                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "Generating password validation file.");
+                    generateSalt();
+                    convertPassToKey(mPasswordString);
+                    createTxtFileInFolder("passwordValidationFile", mAppRootFolder.getDriveId().encodeToString(),
+                            new ListFolderByIDCallback() {
+                                @Override
+                                public void callback(FolderInfo info) {
+                                    JCLog.log(JCLog.LogLevel.INFO, JCLog.LogAreas.GOOGLEAPI, "password validation file generated.");
+                                    setChanged();
+                                    JCLog.log(JCLog.LogLevel.WARNING, JCLog.LogAreas.GOOGLEAPI, "observers notified.");
+                                    notifyObservers();
+                                    clearChanged();
+                                    mConnected = true;
+                                }
+                            });
+
+                }
+            }
+        });
+        builder.show();
     }
 
     // for the master key encryption key
@@ -480,6 +510,9 @@ public class GoogleDriveModelSecure extends GoogleDriveModel {
         // decrypt the encryption key using master key
         byte[] keyIV = Base64.decode(encryptInfo.get(SecureProperties.ENCRYPTION_KEY_IV.toString()), Base64.URL_SAFE);
         byte[] encryptionKeyBytes = decryptStringToData(encryptInfo.get(SecureProperties.ENCRYPTION_KEY.toString()), mKeyEncryptionKey, keyIV);
+        if (encryptionKeyBytes==null){
+            return null;
+        }
         SecretKey encryptionKey = new SecretKeySpec(encryptionKeyBytes, "AES");
 
         // decrypt the name
